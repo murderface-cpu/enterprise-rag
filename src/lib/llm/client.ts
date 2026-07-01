@@ -9,7 +9,8 @@
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env, isMockMode } from "@/lib/env";
+import OpenAI from "openai";
+import { env, isMockMode, hasGroq } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import type { RetrievalHit } from "@/lib/types";
 
@@ -105,9 +106,28 @@ Your job:
 6. Never invent numbers, names, dates, or file paths.
 
 Format:
-- Lead with the direct answer in 1–2 sentences.
+- Lead with the direct answer in 1-2 sentences.
 - Follow with supporting detail, each sentence ending with a citation like [1][2].
 - If multiple sources support the same fact, cite them all.`;
+
+/** Build the grounded user prompt shared by every provider. */
+function buildUserPrompt(question: string, hits: RetrievalHit[]): string {
+  const contextBlock = hits
+    .map(
+      (h, i) =>
+        `[${i + 1}] (source: ${h.metadata.source}, chunk ${h.metadata.chunkIndex}, relevance ${h.score.toFixed(3)})\n${h.text}`
+    )
+    .join("\n\n");
+  return `Context:\n${contextBlock}\n\nQuestion: ${question}\n\nAnswer with citations:`;
+}
+
+/** Extract the 0-based indices of citations the model actually used. */
+function extractCitations(text: string, numHits: number): number[] {
+  const cited = Array.from(text.matchAll(/\[(\d+)\]/g))
+    .map((m) => parseInt(m[1], 10) - 1)
+    .filter((i) => i >= 0 && i < numHits);
+  return [...new Set(cited)].sort((a, b) => a - b);
+}
 
 export class GeminiLLM implements BaseLLM {
   readonly modelName: string;
@@ -125,14 +145,7 @@ export class GeminiLLM implements BaseLLM {
       return { text: "I don't know based on the provided context.", groundedOnly: true, citationsUsed: [] };
     }
 
-    const contextBlock = hits
-      .map(
-        (h, i) =>
-          `[${i + 1}] (source: ${h.metadata.source}, chunk ${h.metadata.chunkIndex}, relevance ${h.score.toFixed(3)})\n${h.text}`
-      )
-      .join("\n\n");
-
-    const userPrompt = `Context:\n${contextBlock}\n\nQuestion: ${question}\n\nAnswer with citations:`;
+    const userPrompt = buildUserPrompt(question, hits);
 
     try {
       const model = this.client.getGenerativeModel({
@@ -147,18 +160,68 @@ export class GeminiLLM implements BaseLLM {
       const result = await model.generateContent(userPrompt);
       const text = result.response.text().trim();
 
-      // Detect citations actually used.
-      const citedIndices = Array.from(text.matchAll(/\[(\d+)\]/g))
-        .map((m) => parseInt(m[1], 10) - 1)
-        .filter((i) => i >= 0 && i < hits.length);
+      return {
+        text,
+        groundedOnly: true,
+        citationsUsed: extractCitations(text, hits.length),
+      };
+    } catch (err) {
+      logger.error("llm.generate_failed", {
+        provider: "gemini",
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Groq LLM (OpenAI-compatible, production-ready without Gemini)
+// ---------------------------------------------------------------------------
+
+export class GroqLLM implements BaseLLM {
+  readonly modelName: string;
+  private readonly client: OpenAI;
+
+  constructor(modelName?: string) {
+    this.modelName = modelName ?? env.GROQ_MODEL;
+    this.client = new OpenAI({
+      apiKey: env.GROQ_API_KEY,
+      baseURL: env.GROQ_BASE_URL,
+    });
+  }
+
+  async generate(ctx: GenerationContext): Promise<GenerationResult> {
+    const { question, hits, options } = ctx;
+
+    if (hits.length === 0) {
+      return { text: "I don't know based on the provided context.", groundedOnly: true, citationsUsed: [] };
+    }
+
+    const userPrompt = buildUserPrompt(question, hits);
+
+    try {
+      const completion = await this.client.chat.completions.create({
+        model: this.modelName,
+        temperature: options?.temperature ?? env.LLM_TEMPERATURE,
+        max_tokens: options?.maxOutputTokens ?? env.LLM_MAX_OUTPUT_TOKENS,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      });
+
+      const text = (completion.choices[0]?.message?.content ?? "").trim();
 
       return {
         text,
         groundedOnly: true,
-        citationsUsed: [...new Set(citedIndices)].sort((a, b) => a - b),
+        citationsUsed: extractCitations(text, hits.length),
       };
     } catch (err) {
       logger.error("llm.generate_failed", {
+        provider: "groq",
+        model: this.modelName,
         error: err instanceof Error ? err.message : String(err),
       });
       throw err;
@@ -172,9 +235,23 @@ export class GeminiLLM implements BaseLLM {
 
 let cached: BaseLLM | null = null;
 
+/**
+ * Resolve the active LLM.
+ *
+ *   1. Groq, when GROQ_API_KEY is set. It gives real grounded generation
+ *      even when Gemini/Upstash are absent, so it wins over the mock.
+ *   2. Extractive MockLLM, in mock mode without a Groq key.
+ *   3. Gemini, for a fully configured production deployment.
+ */
 export function getLLM(): BaseLLM {
   if (cached) return cached;
-  cached = isMockMode ? new MockLLM() : new GeminiLLM();
+  if (hasGroq) {
+    cached = new GroqLLM();
+  } else if (isMockMode) {
+    cached = new MockLLM();
+  } else {
+    cached = new GeminiLLM();
+  }
   return cached;
 }
 

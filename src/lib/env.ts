@@ -33,6 +33,11 @@ const envSchema = z.object({
   LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
   LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(1024),
 
+  // --- Groq (OpenAI-compatible) LLM ---
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().default("openai/gpt-oss-20b"),
+  GROQ_BASE_URL: z.string().url().default("https://api.groq.com/openai/v1"),
+
   // --- Retrieval knobs ---
   TOP_K: z.coerce.number().int().positive().default(8),
   MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
@@ -88,6 +93,9 @@ export const env = parsed.success
       LLM_MODEL: process.env.LLM_MODEL ?? "gemini-1.5-flash",
       LLM_TEMPERATURE: Number(process.env.LLM_TEMPERATURE ?? 0.2),
       LLM_MAX_OUTPUT_TOKENS: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 1024),
+      GROQ_API_KEY: process.env.GROQ_API_KEY,
+      GROQ_MODEL: process.env.GROQ_MODEL ?? "openai/gpt-oss-20b",
+      GROQ_BASE_URL: process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1",
       TOP_K: Number(process.env.TOP_K ?? 8),
       MIN_RELEVANCE_SCORE: Number(process.env.MIN_RELEVANCE_SCORE ?? 0.5),
       ALLOW_MOCK_MODE: (process.env.ALLOW_MOCK_MODE ?? "true").toLowerCase() === "true",
@@ -102,6 +110,10 @@ export const env = parsed.success
 /** True when managed Upstash credentials are present. */
 export const hasUpstashVector = Boolean(env.UPSTASH_VECTOR_REST_URL && env.UPSTASH_VECTOR_REST_TOKEN);
 export const hasUpstashRedis = Boolean(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN);
+
+/** True when a Groq API key is configured. Groq powers answer generation
+ *  even without Gemini, so it takes precedence over the extractive MockLLM. */
+export const hasGroq = Boolean(env.GROQ_API_KEY);
 
 /**
  * Mock mode kicks in automatically when:

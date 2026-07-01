@@ -10,7 +10,6 @@ type Tab = "chat" | "evaluate";
 
 export default function HomePage() {
   const [tab, setTab] = useState<Tab>("chat");
-  const [kbTick, setKbTick] = useState(0);
 
   return (
     <div className="min-h-screen bg-ink-50/40">
@@ -73,8 +72,8 @@ export default function HomePage() {
 
         {tab === "chat" && (
           <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-            <KnowledgeBasePanel onChange={() => setKbTick((t) => t + 1)} key={kbTick} />
-            <ChatPanel key={kbTick} />
+            <KnowledgeBasePanel />
+            <ChatPanel />
           </div>
         )}
 

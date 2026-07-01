@@ -24,6 +24,7 @@
     "@upstash/vector": "^1.2.2",
     "mammoth": "^1.9.0",
     "next": "14.2.18",
+    "openai": "^6.45.0",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -61,7 +61,9 @@ class InMemoryLimiter {
 
   constructor(capacity: number, perMinute: number) {
     this.capacity = capacity;
-    this.refillPerMs = capacity / (perMinute * 60_000);
+    // Refill `perMinute` tokens per 60_000 ms. The bucket therefore fully
+    // replenishes over a minute instead of leaking back a single token.
+    this.refillPerMs = perMinute / 60_000;
   }
 
   async check(key: string): Promise<RateLimitResult> {

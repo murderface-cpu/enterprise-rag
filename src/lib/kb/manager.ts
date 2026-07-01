@@ -193,24 +193,35 @@ export class InMemoryKBManager implements BaseKBManager {
 // Factory
 // ---------------------------------------------------------------------------
 
-let cached: BaseKBManager | null = null;
+// Shared across every API route via globalThis. A plain module-level
+// singleton gives each Next.js route bundle its own copy, so a document
+// registered by /api/ingest would be invisible to /api/knowledge-base and
+// /api/metrics. See the matching note in vectorstore/store.ts.
+const globalForKBManager = globalThis as unknown as {
+  __ragKBManager?: InMemoryKBManager;
+};
+
+let cachedRedis: BaseKBManager | null = null;
 
 export function getKBManager(): BaseKBManager {
-  if (cached) return cached;
   if (isMockMode) {
-    logger.info("kb_manager.mock_mode");
-    cached = new InMemoryKBManager();
-  } else {
-    if (!hasUpstashRedis) {
-      throw new Error(
-        "Production requires Upstash Redis for KB state. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, or set ALLOW_MOCK_MODE=true."
-      );
+    if (!globalForKBManager.__ragKBManager) {
+      logger.info("kb_manager.mock_mode");
+      globalForKBManager.__ragKBManager = new InMemoryKBManager();
     }
-    cached = new RedisKBManager();
+    return globalForKBManager.__ragKBManager;
   }
-  return cached;
+  if (cachedRedis) return cachedRedis;
+  if (!hasUpstashRedis) {
+    throw new Error(
+      "Production requires Upstash Redis for KB state. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, or set ALLOW_MOCK_MODE=true."
+    );
+  }
+  cachedRedis = new RedisKBManager();
+  return cachedRedis;
 }
 
 export function resetKBManager(): void {
-  cached = null;
+  cachedRedis = null;
+  globalForKBManager.__ragKBManager = undefined;
 }

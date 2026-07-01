@@ -259,26 +259,38 @@ export class InMemoryVectorStore implements BaseVectorStore {
 // Factory + singleton
 // ---------------------------------------------------------------------------
 
-let cached: BaseVectorStore | null = null;
+// The in-memory store must be a single instance shared across every API
+// route. Next.js bundles each route separately, so a plain module-level
+// singleton gives each route its OWN copy: a doc written by /api/ingest is
+// then invisible to /api/query and /api/knowledge-base. Pinning it to
+// globalThis keeps one instance per process (and survives dev HMR reloads).
+const globalForVectorStore = globalThis as unknown as {
+  __ragVectorStore?: InMemoryVectorStore;
+};
+
+let cachedUpstash: BaseVectorStore | null = null;
 
 export function getVectorStore(): BaseVectorStore {
-  if (cached) return cached;
   if (isMockMode) {
-    logger.info("vector_store.mock_mode");
-    cached = new InMemoryVectorStore();
-  } else {
-    if (!hasUpstashVector) {
-      throw new Error(
-        "Production requires Upstash Vector. Set UPSTASH_VECTOR_REST_URL and UPSTASH_VECTOR_REST_TOKEN, or set ALLOW_MOCK_MODE=true for local dev."
-      );
+    if (!globalForVectorStore.__ragVectorStore) {
+      logger.info("vector_store.mock_mode");
+      globalForVectorStore.__ragVectorStore = new InMemoryVectorStore();
     }
-    cached = new UpstashVectorStore();
+    return globalForVectorStore.__ragVectorStore;
   }
-  return cached;
+  if (cachedUpstash) return cachedUpstash;
+  if (!hasUpstashVector) {
+    throw new Error(
+      "Production requires Upstash Vector. Set UPSTASH_VECTOR_REST_URL and UPSTASH_VECTOR_REST_TOKEN, or set ALLOW_MOCK_MODE=true for local dev."
+    );
+  }
+  cachedUpstash = new UpstashVectorStore();
+  return cachedUpstash;
 }
 
 export function resetVectorStore(): void {
-  cached = null;
+  cachedUpstash = null;
+  globalForVectorStore.__ragVectorStore = undefined;
 }
 
 // ---------------------------------------------------------------------------
