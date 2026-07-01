@@ -10,9 +10,10 @@
  * We expose a single `search()` API that returns ranked hits.
  */
 
-import { Index } from "@upstash/vector";
+import { Index, WeightingStrategy, FusionAlgorithm } from "@upstash/vector";
 import { env, hasUpstashVector, isMockMode } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { encodeSparse } from "@/lib/embeddings/sparse";
 import type { ChunkMetadata, RetrievalHit } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +24,14 @@ export interface BaseVectorStore {
   upsert(items: { id: string; vector: number[]; metadata: Record<string, unknown> }[]): Promise<void>;
   delete(ids: string[]): Promise<void>;
   deleteByFilter(filter: Record<string, string>): Promise<number>;
-  search(queryVector: number[], topK: number, filter?: Record<string, string>): Promise<RetrievalHit[]>;
+  /** `queryText` is the raw question, used to build the sparse component on
+   *  hybrid indexes; dense-only stores ignore it. */
+  search(
+    queryVector: number[],
+    topK: number,
+    filter?: Record<string, string>,
+    queryText?: string
+  ): Promise<RetrievalHit[]>;
   count(): Promise<number>;
   reset(): Promise<void>;
 }
@@ -51,6 +59,8 @@ interface UpstashMetadata {
 export class UpstashVectorStore implements BaseVectorStore {
   private readonly index: Index;
   private readonly dimension: number;
+  // Lazily-resolved: does this index have a sparse component (hybrid)?
+  private hybridPromise: Promise<boolean> | null = null;
 
   constructor() {
     if (!hasUpstashVector) {
@@ -61,6 +71,35 @@ export class UpstashVectorStore implements BaseVectorStore {
       url: env.UPSTASH_VECTOR_REST_URL!,
       token: env.UPSTASH_VECTOR_REST_TOKEN!,
     });
+  }
+
+  /**
+   * Detect (once, cached) whether the index is hybrid. A hybrid index has a
+   * sparse component and REQUIRES a sparse vector on every upsert/query; a
+   * dense-only index rejects sparse vectors. We adapt to whichever exists so
+   * the same code works against either index type. Fails closed to dense.
+   */
+  private async isHybrid(): Promise<boolean> {
+    if (!this.hybridPromise) {
+      this.hybridPromise = this.index
+        .info()
+        .then((info) => {
+          const hybrid = Boolean(info.sparseIndex);
+          logger.info("vector_store.index_type", {
+            hybrid,
+            dimension: info.dimension,
+            similarity: info.similarityFunction,
+          });
+          return hybrid;
+        })
+        .catch((err) => {
+          logger.warn("vector_store.info_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return false;
+        });
+    }
+    return this.hybridPromise;
   }
 
   async upsert(items: { id: string; vector: number[]; metadata: Record<string, unknown> }[]): Promise<void> {
@@ -77,10 +116,16 @@ export class UpstashVectorStore implements BaseVectorStore {
     }
     if (good.length === 0) return;
 
+    const hybrid = await this.isHybrid();
+
     await this.index.upsert(
       good.map((i) => ({
         id: i.id,
         vector: i.vector,
+        // Hybrid indexes require a sparse vector alongside the dense one.
+        ...(hybrid
+          ? { sparseVector: encodeSparse(String((i.metadata as Record<string, unknown>).text ?? "")) }
+          : {}),
         metadata: i.metadata as unknown as Record<string, unknown>,
       }))
     );
@@ -99,10 +144,16 @@ export class UpstashVectorStore implements BaseVectorStore {
     return Math.max(0, before - after);
   }
 
-  async search(queryVector: number[], topK: number, filter?: Record<string, string>): Promise<RetrievalHit[]> {
+  async search(
+    queryVector: number[],
+    topK: number,
+    filter?: Record<string, string>,
+    queryText?: string
+  ): Promise<RetrievalHit[]> {
     if (queryVector.length !== this.dimension) {
       throw new Error(`query vector dim ${queryVector.length} != index dim ${this.dimension}`);
     }
+    const hybrid = await this.isHybrid();
     const f = filter
       ? Object.entries(filter)
           .map(([k, v]) => `${k} = '${String(v).replace(/'/g, "\\'")}'`)
@@ -113,10 +164,24 @@ export class UpstashVectorStore implements BaseVectorStore {
       topK,
       includeMetadata: true,
       ...(f ? { filter: f } : {}),
+      // On a hybrid index, add the sparse query and let Upstash fuse (RRF)
+      // dense + sparse with BM25-style IDF weighting on the sparse side.
+      ...(hybrid
+        ? {
+            sparseVector: encodeSparse(queryText ?? ""),
+            weightingStrategy: WeightingStrategy.IDF,
+            fusionAlgorithm: FusionAlgorithm.RRF,
+          }
+        : {}),
     });
 
+    // Hybrid fusion scores (RRF) are tiny (~0.03) and not comparable to cosine,
+    // so the cosine relevance threshold only applies to dense-only indexes.
+    // The HybridRetriever re-ranks and re-normalizes these candidates anyway.
+    const minScore = hybrid ? 0 : env.MIN_RELEVANCE_SCORE;
+
     return (result ?? [])
-      .filter((r) => r.score >= env.MIN_RELEVANCE_SCORE)
+      .filter((r) => r.score >= minScore)
       .map((r) => this._toHit(String(r.id), r.metadata as UpstashMetadata | undefined, r.score));
   }
 
@@ -200,7 +265,12 @@ export class InMemoryVectorStore implements BaseVectorStore {
     return before - this.items.length;
   }
 
-  async search(queryVector: number[], topK: number, filter?: Record<string, string>): Promise<RetrievalHit[]> {
+  async search(
+    queryVector: number[],
+    topK: number,
+    filter?: Record<string, string>,
+    _queryText?: string
+  ): Promise<RetrievalHit[]> {
     const filtered = filter
       ? this.items.filter((i) => {
           for (const [k, v] of Object.entries(filter)) {

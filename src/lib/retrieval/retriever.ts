@@ -38,7 +38,7 @@ export class DenseRetriever {
         )
       : undefined;
 
-    const hits = await this.vectorStore.search(queryVector, topK, filter);
+    const hits = await this.vectorStore.search(queryVector, topK, filter, query.question);
 
     logger.debug("retrieval.dense", {
       topK,

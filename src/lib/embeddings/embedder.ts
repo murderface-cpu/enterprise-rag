@@ -9,8 +9,10 @@
  * and the retriever) can stay simple.
  */
 
+import os from "node:os";
+import path from "node:path";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env, isMockMode } from "@/lib/env";
+import { env, resolveEmbeddingProvider } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { chunks as chunkArray, stableHash } from "@/lib/utils";
 import type { Chunk } from "@/lib/types";
@@ -177,6 +179,119 @@ export class GeminiEmbedder implements BaseEmbedder {
 }
 
 // ---------------------------------------------------------------------------
+// Local embedder (in-process transformer, no API key required)
+//
+// Runs a real sentence-embedding model (default BGE-base-en-v1.5, 768-dim)
+// via ONNX inside the Node runtime. This gives production-grade semantic
+// retrieval without depending on Gemini or any hosted embedding service.
+// The model is fetched once and cached to a writable temp dir so it also
+// works on read-only serverless filesystems (Vercel /tmp).
+// ---------------------------------------------------------------------------
+
+const LOCAL_BATCH = 32;
+// BGE retrieval models expect this instruction prefixed to QUERIES only
+// (passages/documents are embedded without it).
+const BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: ";
+
+type FeatureExtractor = (
+  texts: string | string[],
+  opts: { pooling: "mean" | "cls"; normalize: boolean }
+) => Promise<{ tolist(): number[][] }>;
+
+export class LocalEmbedder implements BaseEmbedder {
+  readonly modelName: string;
+  readonly dimension: number;
+  private extractor: Promise<FeatureExtractor> | null = null;
+  private readonly cache = new LRUCache<string, CacheEntry>(2000);
+
+  constructor(modelName?: string, dimension?: number) {
+    this.modelName = modelName ?? env.LOCAL_EMBEDDING_MODEL;
+    this.dimension = dimension ?? env.EMBEDDING_DIM;
+  }
+
+  /** Lazily load the ONNX pipeline once, pointing the model cache at a
+   *  writable temp dir (node_modules is read-only on serverless). */
+  private async getExtractor(): Promise<FeatureExtractor> {
+    if (!this.extractor) {
+      this.extractor = (async () => {
+        const { pipeline, env: hfEnv } = await import("@xenova/transformers");
+        hfEnv.cacheDir = process.env.TRANSFORMERS_CACHE ?? path.join(os.tmpdir(), "hf-cache");
+        hfEnv.allowLocalModels = false;
+        logger.info("embedding.local_model_loading", { model: this.modelName });
+        const pipe = await pipeline("feature-extraction", this.modelName, { quantized: true });
+        logger.info("embedding.local_model_ready", { model: this.modelName });
+        return pipe as unknown as FeatureExtractor;
+      })();
+    }
+    return this.extractor;
+  }
+
+  private async _run(texts: string[]): Promise<number[][]> {
+    const extractor = await this.getExtractor();
+    const out: number[][] = [];
+    for (const batch of chunkArray(texts, LOCAL_BATCH)) {
+      const tensor = await extractor(batch, { pooling: "mean", normalize: true });
+      for (const vec of tensor.tolist()) out.push(this._fit(vec));
+    }
+    return out;
+  }
+
+  /**
+   * Adapt a model vector to the configured EMBEDDING_DIM so it matches the
+   * vector index. Zero-padding a shorter vector is LOSSLESS for cosine
+   * similarity (appended zeros change neither dot products nor norms), so
+   * retrieval quality is preserved. Truncation renormalizes to stay on the
+   * unit sphere (only used when the model is larger than the index).
+   */
+  private _fit(vec: number[]): number[] {
+    const target = this.dimension;
+    if (vec.length === target) return vec;
+    if (vec.length < target) {
+      return vec.concat(new Array<number>(target - vec.length).fill(0));
+    }
+    const head = vec.slice(0, target);
+    const norm = Math.sqrt(head.reduce((s, v) => s + v * v, 0)) || 1;
+    return head.map((v) => v / norm);
+  }
+
+  async embed(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+
+    const out: number[][] = new Array(texts.length);
+    const missing: { idx: number; text: string }[] = [];
+    texts.forEach((t, idx) => {
+      const hit = this.cache.get(stableHash(t));
+      if (hit) out[idx] = hit.vector;
+      else missing.push({ idx, text: t });
+    });
+    if (missing.length === 0) return out;
+
+    try {
+      const vectors = await this._run(missing.map((m) => m.text));
+      missing.forEach((m, i) => {
+        out[m.idx] = vectors[i];
+        this.cache.set(stableHash(m.text), { vector: vectors[i], cachedAt: Date.now() });
+      });
+    } catch (err) {
+      logger.error("embedding.local_failed", {
+        model: this.modelName,
+        batchSize: missing.length,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+    return out;
+  }
+
+  async embedQuery(query: string): Promise<number[]> {
+    const prefix = /bge/i.test(this.modelName) ? BGE_QUERY_PREFIX : "";
+    const [vec] = await this._run([prefix + query]);
+    if (!vec) throw new Error("Local embedding failed: empty result");
+    return vec;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -184,7 +299,11 @@ let cached: BaseEmbedder | null = null;
 
 export function getEmbedder(): BaseEmbedder {
   if (cached) return cached;
-  cached = isMockMode ? new MockEmbedder() : new GeminiEmbedder();
+  const provider = resolveEmbeddingProvider();
+  if (provider === "gemini") cached = new GeminiEmbedder();
+  else if (provider === "local") cached = new LocalEmbedder();
+  else cached = new MockEmbedder();
+  logger.info("embedder.selected", { provider, model: cached.modelName, dimension: cached.dimension });
   return cached;
 }
 

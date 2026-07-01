@@ -9,6 +9,7 @@ import { withRoute, json, optionsHandler } from "@/lib/api/helpers";
 import { getKBManager } from "@/lib/kb/manager";
 import { getVectorStore } from "@/lib/vectorstore/store";
 import { getLLM } from "@/lib/llm/client";
+import { getEmbedder } from "@/lib/embeddings/embedder";
 import { snapshot } from "@/lib/observability/metrics";
 import { env, isMockMode, hasUpstashVector, hasUpstashRedis } from "@/lib/env";
 import type { SystemMetrics } from "@/lib/types";
@@ -33,7 +34,7 @@ export const GET = withRoute("metrics", async () => {
     totalDocuments,
     totalChunks,
     vectorStoreSize,
-    embeddingModel: env.EMBEDDING_MODEL,
+    embeddingModel: getEmbedder().modelName,
     llmModel: getLLM().modelName,
     chunkSize: env.CHUNK_SIZE,
     chunkOverlap: env.CHUNK_OVERLAP,

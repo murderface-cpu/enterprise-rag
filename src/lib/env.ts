@@ -28,6 +28,15 @@ const envSchema = z.object({
   CHUNK_SIZE: z.coerce.number().int().positive().default(800),
   CHUNK_OVERLAP: z.coerce.number().int().nonnegative().default(120),
 
+  // --- Embedding provider selection ---
+  //   auto   -> Gemini when GEMINI_API_KEY is set, otherwise the local model
+  //   gemini -> force Google Gemini embeddings
+  //   local  -> force the in-process transformer (no API key required)
+  //   mock   -> deterministic hash vectors (CI / offline only)
+  EMBEDDING_PROVIDER: z.enum(["auto", "gemini", "local", "mock"]).default("auto"),
+  // In-process retrieval model. BGE-base is 768-dim to match EMBEDDING_DIM.
+  LOCAL_EMBEDDING_MODEL: z.string().default("Xenova/bge-base-en-v1.5"),
+
   // --- LLM knobs ---
   LLM_MODEL: z.string().default("gemini-1.5-flash"),
   LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
@@ -90,6 +99,8 @@ export const env = parsed.success
       EMBEDDING_DIM: Number(process.env.EMBEDDING_DIM ?? 768),
       CHUNK_SIZE: Number(process.env.CHUNK_SIZE ?? 800),
       CHUNK_OVERLAP: Number(process.env.CHUNK_OVERLAP ?? 120),
+      EMBEDDING_PROVIDER: (process.env.EMBEDDING_PROVIDER as "auto" | "gemini" | "local" | "mock") ?? "auto",
+      LOCAL_EMBEDDING_MODEL: process.env.LOCAL_EMBEDDING_MODEL ?? "Xenova/bge-base-en-v1.5",
       LLM_MODEL: process.env.LLM_MODEL ?? "gemini-1.5-flash",
       LLM_TEMPERATURE: Number(process.env.LLM_TEMPERATURE ?? 0.2),
       LLM_MAX_OUTPUT_TOKENS: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 1024),
@@ -114,6 +125,20 @@ export const hasUpstashRedis = Boolean(env.UPSTASH_REDIS_REST_URL && env.UPSTASH
 /** True when a Groq API key is configured. Groq powers answer generation
  *  even without Gemini, so it takes precedence over the extractive MockLLM. */
 export const hasGroq = Boolean(env.GROQ_API_KEY);
+
+/** True when a Gemini API key is configured (used for embeddings). */
+export const hasGemini = Boolean(env.GEMINI_API_KEY);
+
+/**
+ * Resolve which embedding provider to use.
+ *   - Respects an explicit EMBEDDING_PROVIDER when it is not "auto".
+ *   - In "auto" mode, prefers Gemini when a key exists, otherwise the
+ *     in-process local model (which needs no API key at all).
+ */
+export function resolveEmbeddingProvider(): "gemini" | "local" | "mock" {
+  if (env.EMBEDDING_PROVIDER !== "auto") return env.EMBEDDING_PROVIDER;
+  return hasGemini ? "gemini" : "local";
+}
 
 /**
  * Mock mode kicks in automatically when:
