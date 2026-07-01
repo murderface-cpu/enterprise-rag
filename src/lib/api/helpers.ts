@@ -16,10 +16,29 @@ export interface APIError {
   traceId?: string;
 }
 
-/** Wrap a handler with rate limiting, error handling, and metrics. */
+/** Per-request context handed to every route handler. */
+export interface RouteContext {
+  /** Stable per-visitor session id. Documents are scoped to it so uploads
+   *  from one browser session are never visible to another. */
+  sessionId: string;
+}
+
+/** Cookie that carries the session id. httpOnly so client JS can't read it. */
+export const SESSION_COOKIE = "sid";
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
+function generateSessionId(): string {
+  const uuid =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  return `sess_${uuid.replace(/-/g, "")}`;
+}
+
+/** Wrap a handler with session resolution, rate limiting, errors, metrics. */
 export function withRoute<T = unknown>(
   routeName: string,
-  handler: (req: NextRequest) => Promise<NextResponse<T | APIError>>
+  handler: (req: NextRequest, ctx: RouteContext) => Promise<NextResponse<T | APIError>>
 ) {
   return async (req: NextRequest): Promise<NextResponse<T | APIError>> => {
     const t0 = performance.now();
@@ -28,6 +47,24 @@ export function withRoute<T = unknown>(
       req.headers.get("x-real-ip") ??
       "anonymous";
 
+    // Resolve (or mint) the session id from the cookie.
+    const existingSession = req.cookies.get(SESSION_COOKIE)?.value;
+    const sessionId = existingSession || generateSessionId();
+    const isNewSession = !existingSession;
+
+    const finalize = (res: NextResponse<T | APIError>, errored: boolean) => {
+      if (isNewSession) {
+        res.cookies.set(SESSION_COOKIE, sessionId, {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: SESSION_MAX_AGE_SECONDS,
+        });
+      }
+      recordRequest(routeName, performance.now() - t0, errored);
+      return res;
+    };
+
     // Rate limit per IP.
     const rl = await rateLimit(`${routeName}:${ip}`);
     if (!rl.success) {
@@ -35,14 +72,12 @@ export function withRoute<T = unknown>(
         { error: "Rate limit exceeded", details: { limit: rl.limit, reset: rl.reset } },
         { status: 429, headers: { "Retry-After": String(Math.max(1, rl.reset - Date.now())) } }
       );
-      recordRequest(routeName, performance.now() - t0, true);
-      return res as NextResponse<T | APIError>;
+      return finalize(res as NextResponse<T | APIError>, true);
     }
 
     try {
-      const res = await handler(req);
-      recordRequest(routeName, performance.now() - t0, res.status >= 500);
-      return res;
+      const res = await handler(req, { sessionId });
+      return finalize(res, res.status >= 500);
     } catch (err) {
       const traceId = req.headers.get("x-trace-id") ?? undefined;
       logger.error("route.unhandled_error", {
@@ -56,8 +91,7 @@ export function withRoute<T = unknown>(
         { error: "Internal server error", traceId },
         { status: 500 }
       );
-      recordRequest(routeName, performance.now() - t0, true);
-      return res as NextResponse<T | APIError>;
+      return finalize(res as NextResponse<T | APIError>, true);
     }
   };
 }

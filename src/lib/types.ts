@@ -18,6 +18,9 @@ export interface DocumentMetadata {
   pages?: number;
   uploadedAt: string;
   contentHash: string;
+  /** Owning session. Used to isolate one visitor's documents from another's
+   *  in the shared vector index and knowledge-base state. */
+  sessionId?: string;
 }
 
 /** A chunk produced by the chunking layer. */

@@ -32,6 +32,8 @@ export interface BaseVectorStore {
     filter?: Record<string, string>,
     queryText?: string
   ): Promise<RetrievalHit[]>;
+  /** Fetch stored chunks by id (metadata + text), skipping any that are missing. */
+  fetch(ids: string[]): Promise<RetrievalHit[]>;
   count(): Promise<number>;
   reset(): Promise<void>;
 }
@@ -185,6 +187,14 @@ export class UpstashVectorStore implements BaseVectorStore {
       .map((r) => this._toHit(String(r.id), r.metadata as UpstashMetadata | undefined, r.score));
   }
 
+  async fetch(ids: string[]): Promise<RetrievalHit[]> {
+    if (ids.length === 0) return [];
+    const results = await this.index.fetch(ids, { includeMetadata: true });
+    return (results ?? [])
+      .filter((r): r is NonNullable<typeof r> => Boolean(r))
+      .map((r) => this._toHit(String(r.id), r.metadata as UpstashMetadata | undefined, 0));
+  }
+
   async count(): Promise<number> {
     const info = await this.index.info();
     return info.vectorCount ?? 0;
@@ -297,6 +307,13 @@ export class InMemoryVectorStore implements BaseVectorStore {
       .filter((s) => s.score >= minScore)
       .slice(0, topK)
       .map((s) => this._toHit(s.entry.id, s.entry.metadata, s.score));
+  }
+
+  async fetch(ids: string[]): Promise<RetrievalHit[]> {
+    const set = new Set(ids);
+    return this.items
+      .filter((i) => set.has(i.id))
+      .map((i) => this._toHit(i.id, i.metadata, 0));
   }
 
   async count(): Promise<number> {

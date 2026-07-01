@@ -27,9 +27,16 @@ interface EvalResponse {
   summary: EvalSummary;
   perQuery: PerQueryRow[];
   corpusSize: number;
+  corpusSource?: "custom" | "kb" | "default";
   topK: number;
   timestamp: string;
 }
+
+const CORPUS_SOURCE_LABEL: Record<string, string> = {
+  kb: "Generated from your uploaded documents",
+  default: "Built-in sample corpus (upload documents to evaluate your own)",
+  custom: "Custom corpus supplied in the request",
+};
 
 export function EvaluationPanel() {
   const [running, setRunning] = useState(false);
@@ -58,12 +65,25 @@ export function EvaluationPanel() {
         <div>
           <h2 className="text-base font-semibold text-ink-900">Evaluation</h2>
           <p className="mt-0.5 text-xs text-ink-500">
-            Runs the built-in eval corpus through the pipeline and reports retrieval and generation metrics.
+            Generates an eval set from your uploaded documents and reports retrieval and generation metrics.
           </p>
           {result && (
-            <p className="mt-1 text-[11px] text-ink-400">
-              Last run: {new Date(result.timestamp).toLocaleString()} &middot; {result.corpusSize} queries &middot; Top-K {result.topK}
-            </p>
+            <>
+              <p className="mt-1 text-[11px] text-ink-400">
+                Last run: {new Date(result.timestamp).toLocaleString()} &middot; {result.corpusSize} queries &middot; Top-K {result.topK}
+              </p>
+              {result.corpusSource && (
+                <span
+                  className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    result.corpusSource === "kb"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
+                  {CORPUS_SOURCE_LABEL[result.corpusSource] ?? result.corpusSource}
+                </span>
+              )}
+            </>
           )}
         </div>
         <button

@@ -19,7 +19,7 @@ import { z } from "zod";
 import { withRoute, json, optionsHandler, parseBody } from "@/lib/api/helpers";
 import { getRAGPipeline } from "@/lib/rag/pipeline";
 import { aggregate, citationPrecision, evaluateRetrieval } from "@/lib/evaluation/metrics";
-import { DEFAULT_EVAL_CORPUS } from "@/lib/evaluation/corpus";
+import { DEFAULT_EVAL_CORPUS, buildCorpusFromKB, type EvalCase } from "@/lib/evaluation/corpus";
 import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -42,14 +42,35 @@ const evalBodySchema = z.object({
   topK: z.number().int().positive().max(50).optional(),
 });
 
-export const POST = withRoute("evaluate", async (req: NextRequest) => {
+export const POST = withRoute("evaluate", async (req: NextRequest, ctx) => {
   const parsed = await parseBody(req, evalBodySchema);
   if (!parsed.ok) return parsed.res;
 
-  const corpus = parsed.data.corpus ?? DEFAULT_EVAL_CORPUS;
   const topK = parsed.data.topK ?? env.TOP_K;
 
+  // Corpus resolution:
+  //   1. an explicit corpus in the request body, else
+  //   2. one synthesized from THIS session's documents, else
+  //   3. the built-in sample corpus (only when the session KB is empty).
+  let corpus: EvalCase[];
+  let corpusSource: "custom" | "kb" | "default";
+  if (parsed.data.corpus) {
+    corpus = parsed.data.corpus;
+    corpusSource = "custom";
+  } else {
+    const built = await buildCorpusFromKB(ctx.sessionId);
+    if (built.source === "kb" && built.cases.length > 0) {
+      corpus = built.cases;
+      corpusSource = "kb";
+    } else {
+      corpus = DEFAULT_EVAL_CORPUS;
+      corpusSource = "default";
+    }
+  }
+
   const pipeline = getRAGPipeline();
+  // Every eval query is scoped to this session's documents.
+  const filter = { sessionId: ctx.sessionId };
 
   const rows: {
     question: string;
@@ -62,8 +83,8 @@ export const POST = withRoute("evaluate", async (req: NextRequest) => {
 
   for (const c of corpus) {
     const t0 = performance.now();
-    const response = await pipeline.answer({ question: c.question, topK });
-    const retrievalOnly = await pipeline.retrieve({ question: c.question, topK });
+    const response = await pipeline.answer({ question: c.question, topK, filter });
+    const retrievalOnly = await pipeline.retrieve({ question: c.question, topK, filter });
 
     rows.push({
       question: c.question,
@@ -85,6 +106,7 @@ export const POST = withRoute("evaluate", async (req: NextRequest) => {
       summary,
       perQuery: rows,
       corpusSize: corpus.length,
+      corpusSource,
       topK,
       timestamp: new Date().toISOString(),
     },

@@ -33,7 +33,7 @@ const jsonIngestSchema = z.object({
   strategy: z.enum(["recursive", "fixed"]).optional(),
 });
 
-const handler = withRoute("ingest", async (req: NextRequest) => {
+const handler = withRoute("ingest", async (req: NextRequest, ctx) => {
   const contentType = req.headers.get("content-type") ?? "";
 
   let inputs: { filename: string; buffer: Buffer }[] = [];
@@ -60,7 +60,7 @@ const handler = withRoute("ingest", async (req: NextRequest) => {
     return json({ error: "Content-Type must be multipart/form-data or application/json" }, { status: 415 });
   }
 
-  const summary = await ingestFiles(inputs);
+  const summary = await ingestFiles(inputs, ctx.sessionId);
   return json(summary, { status: 200 });
 });
 

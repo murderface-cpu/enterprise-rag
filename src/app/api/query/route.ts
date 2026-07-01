@@ -23,7 +23,7 @@ const querySchema = z.object({
   filter: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
-const handler = withRoute("query", async (req: NextRequest) => {
+const handler = withRoute("query", async (req: NextRequest, ctx) => {
   const parsed = await parseBody(req, querySchema);
   if (!parsed.ok) return parsed.res;
 
@@ -31,7 +31,8 @@ const handler = withRoute("query", async (req: NextRequest) => {
   const result = await pipeline.answer({
     question: parsed.data.question,
     topK: parsed.data.topK,
-    filter: parsed.data.filter,
+    // Restrict retrieval to this session's documents.
+    filter: { ...parsed.data.filter, sessionId: ctx.sessionId },
   });
 
   return json(result, { status: 200 });

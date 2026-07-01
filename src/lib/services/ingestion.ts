@@ -43,11 +43,14 @@ export interface IngestionSummary {
   durationMs: number;
 }
 
-export async function ingestFiles(inputs: IngestionInput[]): Promise<IngestionSummary> {
+export async function ingestFiles(
+  inputs: IngestionInput[],
+  sessionId: string
+): Promise<IngestionSummary> {
   const t0 = performance.now();
   const embedder = getEmbedder();
   const vectorStore = getVectorStore();
-  const kbManager = getKBManager();
+  const kbManager = getKBManager(sessionId);
   const chunker = getChunker("recursive", env.CHUNK_SIZE, env.CHUNK_OVERLAP);
 
   const results: IngestionResult[] = [];
@@ -70,6 +73,13 @@ export async function ingestFiles(inputs: IngestionInput[]): Promise<IngestionSu
       }
 
       const doc = docs[0]; // loaders return a single canonical doc per file
+
+      // Scope the document to its owning session. A session-derived id keeps
+      // chunk ids disjoint across sessions in the shared vector index, and
+      // sessionId in the metadata lets retrieval filter to just this session.
+      doc.metadata.sessionId = sessionId;
+      doc.id = `doc_${stableHash(`${sessionId}:${doc.metadata.source}:${doc.metadata.contentHash}`).slice(0, 16)}`;
+
       const isNew = await kbManager.isNewOrUpdated(doc.metadata.source, doc.metadata.contentHash);
 
       if (!isNew) {
@@ -168,11 +178,17 @@ export async function ingestFiles(inputs: IngestionInput[]): Promise<IngestionSu
 /**
  * Delete a document and all of its embedded chunks.
  */
-export async function deleteDocument(documentId: string): Promise<{ removedChunks: number }> {
-  const kbManager = getKBManager();
+export async function deleteDocument(
+  documentId: string,
+  sessionId: string
+): Promise<{ removedChunks: number }> {
+  const kbManager = getKBManager(sessionId);
   const vectorStore = getVectorStore();
 
+  // Chunk ids come from this session's KB namespace only, so a caller can
+  // never delete another session's vectors even if they guess an id.
   const chunkIds = await kbManager.listChunkIdsForDocument(documentId);
+  if (chunkIds.length === 0) return { removedChunks: 0 };
   await vectorStore.delete(chunkIds);
   return kbManager.deleteDocument(documentId);
 }

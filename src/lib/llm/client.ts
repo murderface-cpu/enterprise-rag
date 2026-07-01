@@ -10,7 +10,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
-import { env, isMockMode, hasGroq } from "@/lib/env";
+import { env, isMockMode, hasGroq, hasGemini } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import type { RetrievalHit } from "@/lib/types";
 
@@ -257,4 +257,46 @@ export function getLLM(): BaseLLM {
 
 export function resetLLM(): void {
   cached = null;
+}
+
+// ---------------------------------------------------------------------------
+// Free-form completion (used by eval to synthesize questions from documents)
+// ---------------------------------------------------------------------------
+
+/**
+ * One-shot text completion using the active real LLM (Groq or Gemini).
+ * Returns null in mock mode or on error so callers can fall back gracefully.
+ */
+export async function generatePlainText(
+  prompt: string,
+  opts?: { maxTokens?: number; temperature?: number }
+): Promise<string | null> {
+  const maxTokens = opts?.maxTokens ?? 512;
+  const temperature = opts?.temperature ?? 0.3;
+  try {
+    if (hasGroq) {
+      const client = new OpenAI({ apiKey: env.GROQ_API_KEY, baseURL: env.GROQ_BASE_URL });
+      const c = await client.chat.completions.create({
+        model: env.GROQ_MODEL,
+        temperature,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      });
+      return (c.choices[0]?.message?.content ?? "").trim() || null;
+    }
+    if (hasGemini) {
+      const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+      const model = client.getGenerativeModel({
+        model: env.LLM_MODEL,
+        generationConfig: { temperature, maxOutputTokens: maxTokens },
+      });
+      const r = await model.generateContent(prompt);
+      return r.response.text().trim() || null;
+    }
+  } catch (err) {
+    logger.warn("llm.generate_plain_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return null;
 }

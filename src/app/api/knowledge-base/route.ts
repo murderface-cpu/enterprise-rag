@@ -7,7 +7,6 @@
 import { NextRequest } from "next/server";
 import { withRoute, json, optionsHandler } from "@/lib/api/helpers";
 import { getKBManager } from "@/lib/kb/manager";
-import { getVectorStore } from "@/lib/vectorstore/store";
 import { deleteDocument } from "@/lib/services/ingestion";
 
 export const dynamic = "force-dynamic";
@@ -15,22 +14,22 @@ export const runtime = "nodejs";
 
 export const OPTIONS = optionsHandler;
 
-export const GET = withRoute("knowledge-base.list", async () => {
-  const kb = getKBManager();
+export const GET = withRoute("knowledge-base.list", async (_req, ctx) => {
+  const kb = getKBManager(ctx.sessionId);
   const docs = await kb.listDocuments();
   return json({ documents: docs, total: docs.length }, { status: 200 });
 });
 
 export const DELETE = withRoute<{ ok?: boolean; id?: string; removedChunks?: number; error?: string }>(
   "knowledge-base.delete",
-  async (req: NextRequest) => {
+  async (req: NextRequest, ctx) => {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     if (!id) {
       return json({ error: "Missing ?id=<documentId> query parameter" }, { status: 400 });
     }
 
-    const result = await deleteDocument(id);
+    const result = await deleteDocument(id, ctx.sessionId);
     if (result.removedChunks === 0) {
       return json({ error: "Document not found", id }, { status: 404 });
     }
@@ -38,17 +37,16 @@ export const DELETE = withRoute<{ ok?: boolean; id?: string; removedChunks?: num
   }
 );
 
-export const POST = withRoute("knowledge-base.reset", async () => {
-  const kb = getKBManager();
-  const vs = getVectorStore();
+// Clears ONLY the calling session's documents. We never call vectorStore.reset()
+// here: the vector index is shared across sessions, so a global wipe would
+// destroy other users' data.
+export const POST = withRoute("knowledge-base.reset", async (_req, ctx) => {
+  const kb = getKBManager(ctx.sessionId);
   const docs = await kb.listDocuments();
+  let cleared = 0;
   for (const d of docs) {
-    const r = await deleteDocument(d.id);
-    if (r.removedChunks > 0) {
-      // deleteDocument also clears vector store chunks; nothing extra needed.
-    }
+    const r = await deleteDocument(d.id, ctx.sessionId);
+    if (r.removedChunks > 0) cleared += 1;
   }
-  // Also wipe any orphans in the vector store that weren't tied to a doc.
-  await vs.reset();
-  return json({ ok: true, cleared: docs.length }, { status: 200 });
+  return json({ ok: true, cleared }, { status: 200 });
 });
