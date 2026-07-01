@@ -18,7 +18,7 @@ This is the question that drove the rewrite. The honest answer:
 | Cost at idle                     | $0 if scaled to zero                 | $0                                 |
 
 For an *enterprise RAG system*, the RAG part is just one piece. The UI,
-the API, the auth, the rate limiting, the deployment — those dominate the
+the API, the auth, the rate limiting, the deployment: those dominate the
 engineering effort. Doing them in a single TypeScript codebase with
 zero ops outweighs the marginal "easier to write Python ML code" advantage.
 
@@ -39,10 +39,10 @@ swapping in Pinecone or Weaviate is a one-file change.
 
 Pure dense retrieval fails on enterprise corpora in two predictable ways:
 
-1. **Exact technical terms** — SKU codes, error strings, internal jargon. The
+1. **Exact technical terms**: SKU codes, error strings, internal jargon. The
    embedding model de-emphasizes these because they don't co-occur with
    anything semantically meaningful.
-2. **Acronyms** — "KPI", "SLA", "API". Each acronym has many senses; the
+2. **Acronyms**: "KPI", "SLA", "API". Each acronym has many senses; the
    embedding model can't disambiguate without context.
 
 BM25 (classic keyword scoring) catches both. Reciprocal rank fusion (RRF)
@@ -50,7 +50,7 @@ combines the two rankings without needing to normalize scores. The weights
 default to 70% dense / 30% BM25, which empirically gives the best of both
 worlds.
 
-In production, BM25 runs over the dense candidates — we don't scan the whole
+In production, BM25 runs over the dense candidates; we don't scan the whole
 corpus twice. That keeps the per-query cost dominated by the vector search.
 
 ## Why recursive chunking?
@@ -74,7 +74,7 @@ embeddings, cut between clusters).
 | Default                | Why                                                                              |
 |------------------------|----------------------------------------------------------------------------------|
 | `CHUNK_SIZE=800`       | Gemini's context window is 1M tokens but retrieval quality peaks around 500-1000 |
-| `CHUNK_OVERLAP=120`    | 15% overlap — enough context bleed for cross-chunk references, not wasteful      |
+| `CHUNK_OVERLAP=120`    | 15% overlap: enough context bleed for cross-chunk references, not wasteful      |
 | `TOP_K=8`              | Enough for the LLM to see alternatives, small enough to fit in the prompt easily |
 | `MIN_RELEVANCE_SCORE=0.5` | Filters noisy matches without being too aggressive (Upstash cosine, 0–1)    |
 | `LLM_TEMPERATURE=0.2`  | Low enough to be deterministic, high enough to not be repetitive                |
@@ -86,15 +86,15 @@ All of these are overridable via env vars. Adjust to your domain.
 
 The `observability` block in `/api/query` returns:
 
-- `traceId` — for log correlation across ingestion, embedding, retrieval, LLM
-- `retrievalLatencyMs` — pure retrieval cost (excluding LLM)
-- `generationLatencyMs` — pure LLM cost
-- `totalLatencyMs` — end-to-end
-- `numRetrieved` — how many chunks actually passed the relevance filter
-- `avgRelevance` — average cosine similarity of returned chunks
-- `confidence` — heuristic (`low` / `medium` / `high`)
-- `model` — which LLM actually served the request
-- `groundedOnly` — `true` if the answer references at least one source
+- `traceId`: for log correlation across ingestion, embedding, retrieval, LLM
+- `retrievalLatencyMs`: pure retrieval cost (excluding LLM)
+- `generationLatencyMs`: pure LLM cost
+- `totalLatencyMs`: end-to-end
+- `numRetrieved`: how many chunks actually passed the relevance filter
+- `avgRelevance`: average cosine similarity of returned chunks
+- `confidence`: heuristic (`low` / `medium` / `high`)
+- `model`: which LLM actually served the request
+- `groundedOnly`: `true` if the answer references at least one source
 
 These fields are surfaced in the UI as badges. They give users (and you, when
 debugging) instant feedback on whether the system is hallucinating, returning
@@ -105,15 +105,15 @@ empty results, or confidently grounded.
 When `ALLOW_MOCK_MODE=true` and managed-service credentials are missing, the
 factory functions return deterministic stubs:
 
-- `MockEmbedder` — projects a TF vector through a hash function and normalizes.
+- `MockEmbedder`: projects a TF vector through a hash function and normalizes.
   Two texts with overlapping tokens produce similar vectors (high cosine).
   Not semantically meaningful, but stable across runs.
-- `MockLLM` — splits retrieved chunks into sentences, scores each by question
+- `MockLLM`: splits retrieved chunks into sentences, scores each by question
   overlap, returns the top 3 sentences verbatim. Always grounded.
-- `InMemoryVectorStore` — keeps vectors in a process-local array. Reset on
+- `InMemoryVectorStore`: keeps vectors in a process-local array. Reset on
   cold start. Useful for unit tests; not for production.
-- `InMemoryKBManager` — same idea.
-- `InMemoryLimiter` — token bucket per IP.
+- `InMemoryKBManager`: same idea.
+- `InMemoryLimiter`: token bucket per IP.
 
 This makes the app fully functional on a fresh clone with no secrets. It's
 also what makes `npm run dev` Just Work.

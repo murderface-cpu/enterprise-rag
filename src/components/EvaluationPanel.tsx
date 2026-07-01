@@ -52,33 +52,69 @@ export function EvaluationPanel() {
   };
 
   return (
-    <div className="card p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="card p-5">
+      {/* Header */}
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-ink-900">Evaluation</h2>
-          <p className="text-xs text-ink-500">
-            Runs the built-in eval corpus through the pipeline and reports retrieval + generation metrics.
+          <p className="mt-0.5 text-xs text-ink-500">
+            Runs the built-in eval corpus through the pipeline and reports retrieval and generation metrics.
           </p>
+          {result && (
+            <p className="mt-1 text-[11px] text-ink-400">
+              Last run: {new Date(result.timestamp).toLocaleString()} &middot; {result.corpusSize} queries &middot; Top-K {result.topK}
+            </p>
+          )}
         </div>
-        <button onClick={run} disabled={running} className="btn-primary">
-          {running ? "Running…" : "Run evaluation"}
+        <button
+          onClick={run}
+          disabled={running}
+          className="btn-primary shrink-0"
+        >
+          {running ? (
+            <span className="flex items-center gap-2">
+              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Running...
+            </span>
+          ) : (
+            "Run evaluation"
+          )}
         </button>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <svg className="mt-0.5 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
           {error}
         </div>
       )}
 
-      {!result && !error && (
-        <p className="rounded-md bg-ink-50 px-3 py-6 text-center text-xs text-ink-500">
-          Click <strong>Run evaluation</strong> to populate this panel.
-        </p>
+      {!result && !error && !running && (
+        <div className="rounded-lg border border-dashed border-ink-200 bg-ink-50/30 py-10 text-center">
+          <p className="text-sm text-ink-500">
+            Click <strong className="text-ink-700">Run evaluation</strong> to populate this panel.
+          </p>
+        </div>
+      )}
+
+      {running && !result && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-lg border border-ink-100 bg-ink-50/40 px-3 py-2">
+              <div className="skeleton mb-2 h-3 w-16 rounded" />
+              <div className="skeleton h-6 w-12 rounded" />
+            </div>
+          ))}
+        </div>
       )}
 
       {result && (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Summary metrics */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Metric label="Queries" value={result.summary.numQueries.toString()} />
             <Metric
@@ -118,31 +154,35 @@ export function EvaluationPanel() {
             />
           </div>
 
+          {/* Per-query breakdown */}
           <div>
             <h3 className="mb-2 text-sm font-semibold text-ink-900">Per-query breakdown</h3>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-lg border border-ink-100">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-ink-200 text-left text-ink-500">
-                    <th className="px-2 py-2 font-medium">Question</th>
-                    <th className="px-2 py-2 font-medium text-right">Recall</th>
-                    <th className="px-2 py-2 font-medium text-right">MRR</th>
-                    <th className="px-2 py-2 font-medium text-right">nDCG</th>
-                    <th className="px-2 py-2 font-medium text-right">Hits</th>
-                    <th className="px-2 py-2 font-medium text-right">Latency</th>
-                    <th className="px-2 py-2 font-medium text-right">Cit. prec.</th>
+                  <tr className="border-b border-ink-200 bg-ink-50/60 text-left text-ink-500">
+                    <th className="px-3 py-2.5 font-semibold">Question</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Recall</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">MRR</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">nDCG</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Hits</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Latency</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Cit. prec.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.perQuery.map((row, i) => (
-                    <tr key={i} className="border-b border-ink-100">
-                      <td className="px-2 py-2 text-ink-800">{row.question}</td>
-                      <td className="px-2 py-2 text-right font-mono">{row.retrieval.recall_at_k.toFixed(2)}</td>
-                      <td className="px-2 py-2 text-right font-mono">{row.retrieval.mrr.toFixed(2)}</td>
-                      <td className="px-2 py-2 text-right font-mono">{row.retrieval.ndcg_at_k.toFixed(2)}</td>
-                      <td className="px-2 py-2 text-right font-mono">{row.retrieval.hits_at_k}</td>
-                      <td className="px-2 py-2 text-right font-mono">{row.latencyMs.toFixed(0)} ms</td>
-                      <td className="px-2 py-2 text-right font-mono">{row.citationPrecision.toFixed(2)}</td>
+                    <tr
+                      key={i}
+                      className="border-b border-ink-100 transition-colors last:border-0 hover:bg-ink-50/50"
+                    >
+                      <td className="px-3 py-2.5 text-ink-800">{row.question}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-ink-700">{row.retrieval.recall_at_k.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-ink-700">{row.retrieval.mrr.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-ink-700">{row.retrieval.ndcg_at_k.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-ink-700">{row.retrieval.hits_at_k}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-ink-700">{row.latencyMs.toFixed(0)} ms</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-ink-700">{row.citationPrecision.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -155,13 +195,27 @@ export function EvaluationPanel() {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: "green" | "yellow" | "red" }) {
-  const toneClass =
-    tone === "green" ? "text-green-700" : tone === "yellow" ? "text-yellow-700" : tone === "red" ? "text-red-700" : "text-ink-900";
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "green" | "yellow" | "red";
+}) {
+  const valueClass =
+    tone === "green"
+      ? "text-green-700"
+      : tone === "yellow"
+      ? "text-yellow-700"
+      : tone === "red"
+      ? "text-red-700"
+      : "text-ink-900";
   return (
-    <div className="rounded-lg border border-ink-100 bg-ink-50/40 px-3 py-2">
-      <p className="text-xs text-ink-500">{label}</p>
-      <p className={`text-lg font-semibold ${toneClass}`}>{value}</p>
+    <div className="rounded-lg border border-ink-100 bg-ink-50/40 px-3 py-2.5 transition-shadow hover:shadow-sm">
+      <p className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-ink-400">{label}</p>
+      <p className={`text-lg font-semibold tabular-nums ${valueClass}`}>{value}</p>
     </div>
   );
 }
@@ -171,6 +225,7 @@ function metricTone(v: number, good: number, bad: number): "green" | "yellow" | 
   if (v >= bad) return "yellow";
   return "red";
 }
+
 function metricToneReverse(v: number, good: number, bad: number): "green" | "yellow" | "red" {
   if (v <= good) return "green";
   if (v <= bad) return "yellow";

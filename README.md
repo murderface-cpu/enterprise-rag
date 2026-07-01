@@ -15,28 +15,28 @@ embeddings, real vector DB, real rate limiting, real observability.
 
 ## ✨ Features
 
-- **Multi-format ingestion** — TXT, Markdown, PDF, DOCX, HTML via a factory-based
+- **Multi-format ingestion**: TXT, Markdown, PDF, DOCX, HTML via a factory-based
   loader layer. Add a new format by registering one class.
-- **Hybrid retrieval** — dense Gemini embeddings + lightweight in-process BM25,
+- **Hybrid retrieval**: dense Gemini embeddings + lightweight in-process BM25,
   fused with reciprocal rank fusion. Outperforms pure-dense on enterprise
   corpora that mix prose with precise technical terms.
-- **Grounded answers** — every claim is cited `[1]`, `[2]`, … back to a source
+- **Grounded answers**: every claim is cited `[1]`, `[2]`, … back to a source
   chunk. The LLM is hard-prompted to refuse when context doesn't support the answer.
-- **Incremental KB lifecycle** — SHA-256 content hashing means re-uploading the
+- **Incremental KB lifecycle**: SHA-256 content hashing means re-uploading the
   same file is a no-op; re-uploading a *changed* file cleanly replaces old
   vectors.
-- **Production-ready observability** — structured JSON logs in production,
+- **Production-ready observability**: structured JSON logs in production,
   per-request trace IDs, in-process request counters + latency tracker,
   `/api/health` and `/api/metrics` endpoints ready for any monitoring stack.
-- **Built-in evaluation** — ships with a sample corpus; click *Run evaluation*
+- **Built-in evaluation**: ships with a sample corpus; click *Run evaluation*
   in the UI to populate Recall@K, MRR, nDCG@K, citation precision, p50/p95
   latency. Replace with your own domain corpus to measure real quality.
-- **Rate limiting** — Upstash Ratelimit in production, in-memory token bucket in
+- **Rate limiting**: Upstash Ratelimit in production, in-memory token bucket in
   dev. Fail-open on limiter outage so a quota blip never takes your service down.
-- **Mock mode for zero-secret development** — no Gemini or Upstash credentials?
+- **Mock mode for zero-secret development**: no Gemini or Upstash credentials?
   The app boots, accepts uploads, and answers questions with deterministic stubs.
   Great for previews, CI, and local hacking.
-- **Serverless-native** — no long-running processes, no FAISS-on-disk, no native
+- **Serverless-native**: no long-running processes, no FAISS-on-disk, no native
   dependencies. Just pure HTTP and the Node 18+ runtime Vercel gives you.
 
 ---
@@ -89,10 +89,10 @@ embeddings, real vector DB, real rate limiting, real observability.
 
 1. Browser → `POST /api/query { question, topK }`
 2. Rate-limit check (Upstash or in-memory)
-3. `GeminiEmbedder.embedQuery()` — embed the question
-4. `UpstashVectorStore.search()` — top-K×4 candidates by cosine similarity
-5. `HybridRetriever` — BM25 over candidates, RRF-fuse with dense, return top-K
-6. `GeminiLLM.generate()` — grounded answer with `[1]`-style citations
+3. `GeminiEmbedder.embedQuery()`: embed the question
+4. `UpstashVectorStore.search()`: top-K×4 candidates by cosine similarity
+5. `HybridRetriever`: BM25 over candidates, RRF-fuse with dense, return top-K
+6. `GeminiLLM.generate()`: grounded answer with `[1]`-style citations
 7. Parse citations from the LLM output, build observability payload (latencies,
    relevance, confidence)
 8. JSON response → browser
@@ -106,7 +106,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The app boots in **mock mode** — uploads work,
+Open http://localhost:3000. The app boots in **mock mode**: uploads work,
 questions work, but the embeddings are deterministic hashes and the LLM does
 extractive summarization. Useful for UI iteration.
 
@@ -125,7 +125,7 @@ Open http://localhost:3000. The app switches to production mode automatically.
 ## 🚀 Deploy to Vercel
 
 1. Push to GitHub (the `murderface-cpu/enterprise-rag` repo or your fork).
-2. Import the repo in Vercel — it auto-detects Next.js.
+2. Import the repo in Vercel; it auto-detects Next.js.
 3. Add environment variables in **Project Settings → Environment Variables**:
    - `GEMINI_API_KEY`
    - `UPSTASH_VECTOR_REST_URL`
@@ -374,7 +374,7 @@ runtime access if missing; everything else has a sensible default.
 | `UPSTASH_REDIS_REST_URL`| optional             | Upstash Redis REST endpoint                                                  |
 | `UPSTASH_REDIS_REST_TOKEN`| optional           | Upstash Redis REST token                                                     |
 | `EMBEDDING_MODEL`       | `text-embedding-004` | Gemini embedding model                                                       |
-| `EMBEDDING_DIM`         | `768`                | Vector dimension — must match the model                                     |
+| `EMBEDDING_DIM`         | `768`                | Vector dimension: must match the model                                     |
 | `CHUNK_SIZE`            | `800`                | Approx. tokens per chunk                                                     |
 | `CHUNK_OVERLAP`         | `120`                | Approx. tokens of overlap between chunks                                     |
 | `LLM_MODEL`             | `gemini-1.5-flash`   | Gemini model for grounded generation                                         |
@@ -436,4 +436,4 @@ runtime access if missing; everything else has a sensible default.
 
 ## 📄 License
 
-MIT — see [LICENSE](./LICENSE).
+MIT: see [LICENSE](./LICENSE).

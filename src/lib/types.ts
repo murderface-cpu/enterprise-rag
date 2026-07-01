@@ -27,7 +27,7 @@ export interface Chunk {
   metadata: ChunkMetadata;
 }
 
-/** Per-chunk metadata — stable enough to round-trip through the vector store. */
+/** Per-chunk metadata, stable enough to round-trip through the vector store. */
 export interface ChunkMetadata extends DocumentMetadata {
   parentDocId: string;
   chunkIndex: number;
@@ -37,7 +37,7 @@ export interface ChunkMetadata extends DocumentMetadata {
   charEnd: number;
 }
 
-/** An embedded chunk — vector + payload for the vector DB. */
+/** An embedded chunk: vector + payload for the vector DB. */
 export interface EmbeddedChunk {
   id: string;
   vector: number[];

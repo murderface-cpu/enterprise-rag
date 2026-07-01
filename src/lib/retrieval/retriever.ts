@@ -31,7 +31,7 @@ export class DenseRetriever {
     const topK = query.topK ?? env.TOP_K;
     const queryVector = await this.embedder.embedQuery(query.question);
 
-    // Coerce filter values to strings — Upstash Vector filter DSL is string-only.
+    // Coerce filter values to strings: Upstash Vector filter DSL is string-only.
     const filter: Record<string, string> | undefined = query.filter
       ? Object.fromEntries(
           Object.entries(query.filter).map(([k, v]) => [k, String(v)])
@@ -130,7 +130,7 @@ class BM25Index {
 export interface HybridRetrieverOptions {
   denseWeight?: number;
   bm25Weight?: number;
-  /** Candidate oversampling factor — fetch this many times more than topK
+  /** Candidate oversampling factor: fetch this many times more than topK
    *  from the dense index, then re-rank with BM25, then return topK. */
   oversample?: number;
 }

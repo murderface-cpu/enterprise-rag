@@ -16,7 +16,7 @@ hash changes. The document registry lives in Redis, keyed by source filename.
    existed, its old chunk vectors are deleted first.
 5. **KB manager** records the document's metadata + chunk-id list in Redis.
 
-A second upload of the *same* file with unchanged content is a no-op — the
+A second upload of the *same* file with unchanged content is a no-op: the
 existing vectors are reused and zero Gemini calls are made. This is what makes
 the system cheap to operate over time.
 

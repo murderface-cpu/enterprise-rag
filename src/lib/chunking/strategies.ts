@@ -139,13 +139,13 @@ export class RecursiveChunker extends BaseChunker {
         continue;
       }
 
-      // Buffer is full — flush it.
+      // Buffer is full; flush it.
       if (buffer.length > 0) {
         chunks.push(buffer);
         // Take the tail of the previous chunk as overlap seed.
         buffer = buffer.slice(Math.max(0, buffer.length - overlapChars)) + piece;
       } else {
-        // Single piece larger than chunk size — push as-is.
+        // Single piece larger than chunk size: push as-is.
         chunks.push(piece);
         buffer = "";
       }

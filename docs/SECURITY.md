@@ -42,17 +42,17 @@ A short, honest summary of what this system does and doesn't protect against.
 
 ## Recommended hardening for production
 
-1. **Add auth** — NextAuth.js, Clerk, or a custom JWT layer in
+1. **Add auth**: NextAuth.js, Clerk, or a custom JWT layer in
    `src/middleware.ts`. Gate every API route.
-2. **Add a tenant filter** — every `RAGQuery` includes `filter: { tenantId }`.
+2. **Add a tenant filter**: every `RAGQuery` includes `filter: { tenantId }`.
    Every `ingestFiles` call writes the tenant into `DocumentMetadata`.
-3. **Add an audit log** — Redis-backed append-only log of (user, action,
+3. **Add an audit log**: Redis-backed append-only log of (user, action,
    timestamp, docId, queryHash).
-4. **Restrict CORS** — change `Access-Control-Allow-Origin: *` in
+4. **Restrict CORS**: change `Access-Control-Allow-Origin: *` in
    `src/lib/api/helpers.ts` to your frontend origin only.
-5. **Add content moderation** — pre-process uploads through a safety model
+5. **Add content moderation**: pre-process uploads through a safety model
    (Gemini has one) to flag PII, hate speech, etc.
-6. **Add quota tracking** — per-user counters, not just per-IP.
+6. **Add quota tracking**: per-user counters, not just per-IP.
 
 ## Reporting issues
 

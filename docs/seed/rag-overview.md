@@ -3,8 +3,8 @@
 **Retrieval-Augmented Generation (RAG)** is an architecture that combines two
 components:
 
-1. A **retrieval system** — typically a vector search index over a document
-   corpus — that, given a user question, returns the most semantically relevant
+1. A **retrieval system**, typically a vector search index over a document
+   corpus, that, given a user question, returns the most semantically relevant
    chunks of text.
 2. A **generative model** (an LLM) that produces an answer conditioned on those
    retrieved chunks.
@@ -12,7 +12,7 @@ components:
 The key property: the LLM is instructed to answer using *only* the provided
 context. This grounds the response in real documents, which dramatically reduces
 hallucination compared to a closed-book LLM call, and lets you update the
-system's knowledge simply by adding or removing documents — no model
+system's knowledge simply by adding or removing documents, no model
 retraining required.
 
 ## Why it matters in production

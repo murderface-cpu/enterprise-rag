@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DocumentRecord } from "@/lib/kb/manager";
 
+const FILE_ICONS: Record<string, string> = {
+  pdf: "📄",
+  docx: "📝",
+  txt: "📃",
+  md: "📋",
+  html: "🌐",
+};
+
 export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
   const [docs, setDocs] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +28,7 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
       const data = (await res.json()) as { documents: DocumentRecord[] };
       setDocs(data.documents);
     } catch (e) {
-      // silent — sidebar still shows old state
+      // silent: sidebar still shows old state
       console.warn("Failed to refresh KB", e);
     } finally {
       setLoading(false);
@@ -114,12 +122,17 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
 
   return (
     <div className="card flex h-[calc(100vh-220px)] flex-col">
+      {/* Header */}
       <div className="border-b border-ink-100 px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-ink-900">Knowledge base</h2>
+            <h2 className="text-base font-semibold text-ink-900">Knowledge Base</h2>
             <p className="text-xs text-ink-500">
-              {loading ? "Loading…" : `${docs.length} document${docs.length === 1 ? "" : "s"}`}
+              {loading ? (
+                <span className="skeleton inline-block h-3 w-20 rounded align-middle" />
+              ) : (
+                `${docs.length} document${docs.length === 1 ? "" : "s"}`
+              )}
             </p>
           </div>
           {docs.length > 0 && (
@@ -128,47 +141,67 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
               disabled={resetting}
               className="btn-danger !px-3 !py-1 text-xs"
             >
-              {resetting ? "Clearing…" : "Clear all"}
+              {resetting ? "Clearing..." : "Clear all"}
             </button>
           )}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto scroll-thin px-4 py-3 space-y-2">
+        {/* Feedback banners */}
         {uploadError && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <svg className="mt-0.5 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
             {uploadError}
           </div>
         )}
         {uploadSummary && (
-          <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+          <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+            <svg className="mt-0.5 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
             {uploadSummary}
           </div>
         )}
 
+        {/* Drop zone */}
         <div
-          onDragEnter={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
+          onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
           onDragLeave={() => setDragActive(false)}
           onDrop={(e) => {
             e.preventDefault();
             setDragActive(false);
             if (e.dataTransfer.files) upload(e.dataTransfer.files);
           }}
-          className={`rounded-lg border-2 border-dashed px-4 py-6 text-center text-sm transition ${
+          className={`rounded-xl border-2 border-dashed px-4 py-5 text-center transition-all ${
             dragActive
-              ? "border-brand-500 bg-brand-50/40 text-brand-700"
-              : "border-ink-200 text-ink-500"
+              ? "border-brand-500 bg-brand-50/60 text-brand-700 scale-[1.01]"
+              : "border-ink-200 text-ink-500 hover:border-ink-300 hover:bg-ink-50/50"
           }`}
         >
-          <p className="mb-1 font-medium">Drag & drop files here</p>
-          <p className="mb-3 text-xs">.txt, .md, .pdf, .docx, .html — up to 10MB each</p>
+          <div className="mb-2 flex justify-center">
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={dragActive ? "currentColor" : "#9ca3af"}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="16 16 12 12 8 16" />
+              <line x1="12" y1="12" x2="12" y2="21" />
+              <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+            </svg>
+          </div>
+          <p className="mb-0.5 text-sm font-medium">
+            {dragActive ? "Drop to upload" : "Drag files here"}
+          </p>
+          <p className="mb-3 text-xs text-ink-400">.txt, .md, .pdf, .docx, .html (up to 10 MB each)</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -185,37 +218,65 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? "Uploading…" : "Browse files"}
+            {uploading ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Uploading...
+              </span>
+            ) : (
+              "Browse files"
+            )}
           </button>
         </div>
 
+        {/* Empty state */}
         {docs.length === 0 && !loading && (
-          <p className="rounded-md bg-ink-50 px-3 py-2 text-xs text-ink-500">
-            No documents yet. Upload one to start building the knowledge base.
-          </p>
+          <div className="rounded-lg border border-dashed border-ink-200 bg-ink-50/30 px-4 py-5 text-center">
+            <p className="text-xs text-ink-500">No documents yet. Upload one above to start building your knowledge base.</p>
+          </div>
         )}
 
+        {/* Loading skeleton */}
+        {loading && docs.length === 0 && (
+          <div className="space-y-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="rounded-lg border border-ink-100 bg-white px-3 py-2">
+                <div className="skeleton mb-1 h-3.5 w-3/4 rounded" />
+                <div className="skeleton h-3 w-1/2 rounded" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Document list */}
         {docs.map((d) => (
           <div
             key={d.id}
-            className="group flex items-start justify-between rounded-lg border border-ink-100 bg-white px-3 py-2"
+            className="group flex items-start justify-between rounded-lg border border-ink-100 bg-white px-3 py-2.5 transition-shadow hover:shadow-sm"
           >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink-900" title={d.source}>
-                {d.source}
-              </p>
-              <p className="text-xs text-ink-500">
-                <span className="badge-gray mr-1 uppercase">{d.type}</span>
-                {d.chunkCount} chunks · {(d.sizeBytes / 1024).toFixed(1)} KB ·{" "}
-                {new Date(d.uploadedAt).toLocaleString()}
-              </p>
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+              <span className="mt-0.5 shrink-0 text-base leading-none" role="img" aria-label={d.type}>
+                {FILE_ICONS[d.type] ?? "📎"}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-ink-900" title={d.source}>
+                  {d.source}
+                </p>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  <span className="badge-gray mr-1 uppercase">{d.type}</span>
+                  {d.chunkCount} chunks &middot; {(d.sizeBytes / 1024).toFixed(1)} KB &middot;{" "}
+                  {new Date(d.uploadedAt).toLocaleString()}
+                </p>
+              </div>
             </div>
             <button
               onClick={() => remove(d.id)}
-              className="ml-2 rounded p-1 text-ink-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+              className="ml-2 shrink-0 rounded p-1 text-ink-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
               title="Remove document"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
             </button>

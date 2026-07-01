@@ -2,7 +2,7 @@
  * Embedding layer.
  *
  *   - BaseEmbedder:     abstract contract.
- *   - GeminiEmbedder:   production — uses Google's @google/generative-ai SDK.
+ *   - GeminiEmbedder:   production, uses Google's @google/generative-ai SDK.
  *   - MockEmbedder:     deterministic stub for local dev / CI without secrets.
  *
  * Batching and caching are handled here so callers (the ingestion pipeline
@@ -83,7 +83,7 @@ export class MockEmbedder implements BaseEmbedder {
    * Deterministic pseudo-embedding derived from text content.
    *
    * Mock mode is for local dev / CI without secrets. The point isn't
-   * realistic semantic similarity — it's stable vectors that produce
+   * realistic semantic similarity; it's stable vectors that produce
    * useful ranking *and* survive the `MIN_RELEVANCE_SCORE` filter.
    *
    * Strategy: project the term-frequency vector into a fixed-size dense

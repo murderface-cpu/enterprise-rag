@@ -89,7 +89,7 @@ export class PdfLoader extends BaseLoader {
   readonly supportedTypes = ["pdf"] as const;
 
   async load(input: Buffer | string, filename: string): Promise<RawDocument[]> {
-    // Lazy import — pdf-parse pulls in test files that confuse bundlers.
+    // Lazy import: pdf-parse pulls in test files that confuse bundlers.
     const { default: pdfParse } = await import("pdf-parse");
     const buffer = typeof input === "string" ? Buffer.from(input, "base64") : input;
     const parsed = await pdfParse(buffer, { max: 0 });

@@ -1,7 +1,7 @@
 /**
  * Environment configuration and validation.
  *
- * Validation runs lazily — module import does NOT throw, so Next.js can
+ * Validation runs lazily; module import does NOT throw, so Next.js can
  * build even when env vars are missing. The first call to `requireEnv()`
  * will throw with a friendly message if required vars are absent.
  */
@@ -49,7 +49,7 @@ const envSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Parsed env — schema is built, but parsing happens lazily so missing
+// Parsed env: schema is built, but parsing happens lazily so missing
 // required env vars don't break `next build`.
 // ---------------------------------------------------------------------------
 
@@ -60,7 +60,7 @@ const parseError = parsed.success
 
 /**
  * Get the validated env, throwing if any required var is missing.
- * Call this from runtime code (API routes, server components) — not at
+ * Call this from runtime code (API routes, server components), not at
  * top level of an imported module.
  */
 export function requireEnv() {

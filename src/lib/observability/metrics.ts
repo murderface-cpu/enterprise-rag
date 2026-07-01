@@ -2,7 +2,7 @@
  * Lightweight in-process metrics.
  *
  * On Vercel, each serverless instance has its own memory, so this is
- * best-effort — it gives you *current-instance* traffic and latency stats
+ * best-effort: it gives you *current-instance* traffic and latency stats
  * that surface on /api/metrics and /api/health. For production-grade
  * observability, point the same logs at an external service (Axiom,
  * Datadog, etc.). Structured JSON logs are already emitted by `logger`.

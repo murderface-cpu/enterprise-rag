@@ -125,7 +125,7 @@ function computeConfidence(numHits: number, avgRelevance: number): "low" | "medi
 }
 
 // ---------------------------------------------------------------------------
-// Factory — caches the pipeline so callers don't rebuild components on
+// Factory: caches the pipeline so callers don't rebuild components on
 // every request. Components are themselves singletons via their own factories.
 // ---------------------------------------------------------------------------
 

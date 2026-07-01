@@ -30,7 +30,7 @@ function emit(level: LogLevel, message: string, ctx: LogContext = {}): void {
   const base = { level, timestamp, message, ...ctx };
 
   if (env.NODE_ENV === "production") {
-    // Structured single-line JSON — easy for log shippers to ingest.
+    // Structured single-line JSON: easy for log shippers to ingest.
     // eslint-disable-next-line no-console
     console[level === "debug" ? "log" : level](JSON.stringify(base));
     return;

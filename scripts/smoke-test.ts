@@ -67,7 +67,7 @@ async function main() {
 
   console.log("\nResults:");
   for (const r of results) {
-    console.log(`  ${r.ok ? "✅" : "❌"} ${r.name}${r.detail ? ` — ${r.detail}` : ""}`);
+    console.log(`  ${r.ok ? "✅" : "❌"} ${r.name}${r.detail ? `: ${r.detail}` : ""}`);
   }
 
   const failed = results.filter((r) => !r.ok).length;

@@ -7,7 +7,7 @@ export function sha256(input: string): string {
   // Web crypto is available on Vercel's edge + node runtimes.
   // Use sync fallback to avoid pulling node:crypto into the edge bundle.
   if (typeof crypto !== "undefined" && crypto.subtle) {
-    // subtle.digest is async — not useful here. Use a tiny inline SHA-256.
+    // subtle.digest is async, not useful here. Use a tiny inline SHA-256.
   }
   // Fallback: pure-JS SHA-256 via Node Buffer when available, otherwise a
   // deterministic stub. We avoid dynamic imports to keep edge bundling simple.
@@ -23,7 +23,7 @@ export function sha256(input: string): string {
 
 /** Deterministic 64-bit hex hash for IDs and cache keys. */
 export function stableHash(input: string): string {
-  // FNV-1a 64-bit — tiny, fast, deterministic, edge-safe.
+  // FNV-1a 64-bit: tiny, fast, deterministic, edge-safe.
   let h1 = 0xdeadbeef ^ 0;
   let h2 = 0x41c6ce57 ^ 0;
   for (let i = 0; i < input.length; i++) {

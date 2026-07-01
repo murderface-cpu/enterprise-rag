@@ -7,11 +7,11 @@ short version is in the main README; this is the long version.
 
 Vercel is the best place to deploy a Next.js app because:
 
-1. **Zero ops** — no Docker, no Kubernetes, no CI to maintain.
-2. **Edge runtime** — API routes spin up close to the user.
-3. **Built-in preview URLs** — every PR gets its own URL.
-4. **Generous free tier** — enough for low-traffic demos and personal projects.
-5. **Environment variable management** — secrets stay in the dashboard, never
+1. **Zero ops**: no Docker, no Kubernetes, no CI to maintain.
+2. **Edge runtime**: API routes spin up close to the user.
+3. **Built-in preview URLs**: every PR gets its own URL.
+4. **Generous free tier**: enough for low-traffic demos and personal projects.
+5. **Environment variable management**: secrets stay in the dashboard, never
    in your git history.
 
 ## Production dependencies
@@ -29,14 +29,14 @@ The system needs three external services:
 
 - **URL**: https://console.upstash.com/vector
 - **What you need**: create an index with dimension 768 and cosine similarity
-- **Free tier**: 10,000 vectors, 100K queries/month — fine for small corpora
+- **Free tier**: 10,000 vectors, 100K queries/month, fine for small corpora
 - **Latency**: ~50ms p50 from edge
 
 ### 3. Upstash Redis
 
 - **URL**: https://console.upstash.com/redis
 - **What you need**: create a database (any region)
-- **Free tier**: 10K commands/day, 256MB storage — plenty for KB state
+- **Free tier**: 10K commands/day, 256MB storage, plenty for KB state
 - **Latency**: ~10ms p50
 
 ## Vercel project setup
@@ -54,7 +54,7 @@ The system needs three external services:
 2. **Import to Vercel**:
    - Visit https://vercel.com/new
    - Select the GitHub repo
-   - Vercel auto-detects Next.js — no config changes needed
+   - Vercel auto-detects Next.js; no config changes needed
    - Click **Deploy**
 
 3. **Add environment variables** in **Project Settings → Environment Variables**:
@@ -90,9 +90,9 @@ Total realistic cost at moderate scale: **$20-40/month**.
 
 ## What to monitor in production
 
-- **Vercel dashboard** — function invocations, cold starts, error rate
-- **Upstash dashboards** — query volume, cache hit rate, p99 latency
-- **Gemini dashboard** — request count, token usage
+- **Vercel dashboard**: function invocations, cold starts, error rate
+- **Upstash dashboards**: query volume, cache hit rate, p99 latency
+- **Gemini dashboard**: request count, token usage
 - **Application-level**:
   - `GET /api/metrics` returns per-route counts and average latency
   - `GET /api/health` is your uptime probe

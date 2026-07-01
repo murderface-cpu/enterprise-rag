@@ -1,7 +1,7 @@
 /**
  * LLM layer.
  *
- *   - GeminiLLM:  production — grounded answer generation with citations.
+ *   - GeminiLLM:  production, grounded answer generation with citations.
  *   - MockLLM:    extractive fallback for mock mode. Picks salient sentences
  *                 from retrieved context and returns them as the answer.
  *

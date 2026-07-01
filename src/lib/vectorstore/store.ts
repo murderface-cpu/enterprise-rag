@@ -1,7 +1,7 @@
 /**
  * Vector store abstraction.
  *
- *   - UpstashVectorStore: production — uses Upstash Vector (REST, edge-safe).
+ *   - UpstashVectorStore: production, uses Upstash Vector (REST, edge-safe).
  *   - InMemoryVectorStore: mock-mode fallback that holds vectors in process
  *                          memory. NOT persistent across cold starts; intended
  *                          only for local dev without secrets.
@@ -67,7 +67,7 @@ export class UpstashVectorStore implements BaseVectorStore {
     if (items.length === 0) return;
     // Sanity: Upstash requires fixed dimension. If a chunk's vector length
     // doesn't match, drop it with a warning rather than crashing the whole
-    // batch — the alternative is to lose all subsequent good vectors.
+    // batch; the alternative is to lose all subsequent good vectors.
     const good = items.filter((i) => i.vector.length === this.dimension);
     if (good.length < items.length) {
       logger.warn("vector_store.dimension_mismatch", {
@@ -217,7 +217,7 @@ export class InMemoryVectorStore implements BaseVectorStore {
 
     scored.sort((a, b) => b.score - a.score);
 
-    // In mock mode we have no real embedding model — similarity scores
+    // In mock mode we have no real embedding model; similarity scores
     // are loose at best. Don't apply the relevance threshold here; the
     // UI's confidence badge already reflects low scores, and aggressive
     // filtering makes the demo look broken.

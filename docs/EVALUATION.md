@@ -10,30 +10,30 @@ evaluation corpus.
 
 These metrics answer "did we find the right chunks?"
 
-- **Recall@K** — fraction of known-relevant documents that appear in the
+- **Recall@K**: fraction of known-relevant documents that appear in the
   top-K retrieved results. If you marked doc A as relevant and it shows up
   in positions 1-3 of K=5, you got 100% recall. If it doesn't appear in
   positions 1-5, you got 0%.
-- **MRR (Mean Reciprocal Rank)** — 1 / (position of first relevant result).
+- **MRR (Mean Reciprocal Rank)**: 1 / (position of first relevant result).
   Rewards ranking the right answer first. MRR=1.0 means perfect; MRR=0.33
   means the right answer was at position 3.
-- **nDCG@K (Normalized Discounted Cumulative Gain)** — like MRR but accounts
+- **nDCG@K (Normalized Discounted Cumulative Gain)**: like MRR but accounts
   for the *quality* of the ranking, not just the first hit. nDCG=1.0 means
   perfect ranking; 0 means the relevant documents were at the bottom.
 
 ### Generation quality
 
-- **Citation precision** — of the chunks the LLM cited (e.g. `[1]`, `[2]`),
+- **Citation precision**: of the chunks the LLM cited (e.g. `[1]`, `[2]`),
   how many actually contain content matching the expected answer?
-- **Grounded fraction** — fraction of queries where the LLM's response
+- **Grounded fraction**: fraction of queries where the LLM's response
   includes at least one citation. Low grounded fraction = the LLM is
-  answering from its own knowledge instead of the documents — a red flag.
+  answering from its own knowledge instead of the documents, a red flag.
 
 ### Operational quality
 
-- **p50 / p95 latency** — middle and tail latency. p95 tells you what your
+- **p50 / p95 latency**: middle and tail latency. p95 tells you what your
   worst 1-in-20 requests feel like.
-- **Average latency** — overall throughput character.
+- **Average latency**: overall throughput character.
 
 ## Running the built-in evaluation
 
@@ -92,7 +92,7 @@ If you're below "OK" on any metric, fix that metric specifically:
 
 - **Low recall**: improve chunking (smaller chunks, more overlap), improve
   embeddings (try a different model), or add reranking.
-- **Low MRR / nDCG**: improve ranking — add a cross-encoder reranker, tune
+- **Low MRR / nDCG**: improve ranking; add a cross-encoder reranker, tune
   the dense/BM25 weights in `HybridRetriever`.
 - **Low citation precision**: tighten the system prompt, lower the LLM
   temperature, or restrict `TOP_K` so the LLM sees fewer options.
@@ -125,8 +125,8 @@ when you change the system prompt, swap embeddings, or update chunking.
   system in ways the eval doesn't cover.
 
 For deeper evaluation, integrate with tools like:
-- **RAGAS** — automatic reference-free evaluation
-- **LangSmith** — traces + scoring
-- **Braintrust** — eval suites + regression tracking
+- **RAGAS**: automatic reference-free evaluation
+- **LangSmith**: traces + scoring
+- **Braintrust**: eval suites + regression tracking
 
 These complement (don't replace) the in-built layer.

@@ -1,7 +1,7 @@
 {
   "name": "scalable-enterprise-rag",
   "version": "2.0.0",
-  "description": "Production-grade Retrieval-Augmented Generation system for Vercel — Gemini embeddings, Upstash Vector, hybrid retrieval, evaluation, and observability.",
+  "description": "Production-grade Retrieval-Augmented Generation system for Vercel: Gemini embeddings, Upstash Vector, hybrid retrieval, evaluation, and observability.",
   "private": true,
   "license": "MIT",
   "engines": {
