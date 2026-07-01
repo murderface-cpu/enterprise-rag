@@ -1,0 +1,27 @@
+# Node / Next.js
+node_modules
+.next
+out
+.env
+.env.local
+.env.*.local
+.npm
+*.tsbuildinfo
+
+# Logs
+*.log
+.vercel
+
+# IDE
+.vscode
+.idea
+.DS_Store
+
+# Python venv inherited from prior stack
+.venv
+__pycache__
+*.pyc
+*.pyo
+
+# Local data (mock mode)
+data/
