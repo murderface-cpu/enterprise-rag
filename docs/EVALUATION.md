@@ -1,8 +1,27 @@
 # Evaluation guide
 
-The system ships with a built-in evaluation layer. This document explains
-what it measures, why those metrics matter, and how to write your own
-evaluation corpus.
+The system ships with a built-in evaluation layer that **adapts to your own
+knowledge base**. This document explains what it measures, why those metrics
+matter, and how the corpus is built.
+
+## Where the eval questions come from
+
+`POST /api/evaluate` resolves its corpus in this order:
+
+1. An explicit `corpus` in the request body (`corpusSource: "custom"`).
+2. A corpus **synthesized from the calling session's uploaded documents**
+   (`corpusSource: "kb"`). `buildCorpusFromKB` samples the session's documents,
+   pulls each one's first chunk (`vectorStore.fetch`), and asks the active LLM
+   (Groq/Gemini) to write a natural question answered by that chunk. The source
+   document is the ground-truth relevant doc, and distinctive terms from the
+   chunk become the expected-answer substrings. If no real LLM is available it
+   falls back to a deterministic sentence-extraction question.
+3. The small built-in sample corpus in `src/lib/evaluation/corpus.ts`
+   (`corpusSource: "default"`), used only when the session KB is empty.
+
+Every eval query is scoped to the caller's session, so you only ever measure
+retrieval against your own documents. The Evaluation panel shows a badge telling
+you which source was used.
 
 ## What it measures
 
@@ -35,19 +54,26 @@ These metrics answer "did we find the right chunks?"
   worst 1-in-20 requests feel like.
 - **Average latency**: overall throughput character.
 
-## Running the built-in evaluation
+## Running the evaluation
+
+From the UI: upload documents, open the **Evaluation** tab, click **Run
+evaluation**. The system generates questions from what you uploaded and reports
+the metrics. From scripts:
 
 ```bash
 npm run seed     # uploads docs/seed/* to a running server
-npm run eval     # runs the eval corpus and prints the summary
+npm run eval     # runs the eval and prints the summary
 ```
 
-The built-in corpus lives in `src/lib/evaluation/corpus.ts`. It has 5
-questions targeting the sample seed documents.
+> Note: the CLI scripts don't persist the session cookie between calls, so
+> `npm run seed` and `npm run eval` land in different sessions. Prefer the UI (or
+> a single cookie jar) when you want the eval to see freshly-seeded docs.
 
-## Writing your own evaluation corpus
+## Supplying your own explicit corpus
 
-The hard part of any RAG evaluation is the corpus itself. A good corpus:
+The KB-adaptive corpus is great for a quick, honest read on your real documents.
+When you want a curated, stable benchmark, pass an explicit `corpus` to
+`POST /api/evaluate`. A good hand-written corpus:
 
 1. **Has at least 30-50 questions.** Anything smaller has too much variance.
 2. **Mixes difficulty.** Include easy questions (single keyword match),
@@ -71,8 +97,8 @@ Example:
 },
 ```
 
-Replace `src/lib/evaluation/corpus.ts` (or pass a custom corpus via the
-`POST /api/evaluate` body) with your domain-specific set.
+Pass this as the `corpus` field in the `POST /api/evaluate` body, or edit the
+`DEFAULT_EVAL_CORPUS` fallback in `src/lib/evaluation/corpus.ts`.
 
 ## Interpreting results
 
@@ -98,8 +124,9 @@ If you're below "OK" on any metric, fix that metric specifically:
   temperature, or restrict `TOP_K` so the LLM sees fewer options.
 - **Low grounded fraction**: same as above. If the LLM still answers
   without citing, you're seeing hallucination.
-- **High latency**: smaller `TOP_K`, smaller `CHUNK_SIZE`, fewer Gemini calls
-  (cache embeddings, cache LLM responses).
+- **High latency**: smaller `TOP_K`, smaller `CHUNK_SIZE`, fewer LLM/embedding
+  calls (cache embeddings, cache LLM responses). On serverless, the first
+  request also pays a one-time embedding-model download.
 
 ## Continuous evaluation
 
@@ -123,6 +150,9 @@ when you change the system prompt, swap embeddings, or update chunking.
   paraphrase the source instead of using the same words.
 - It's not adversarial. A determined user can find queries that break the
   system in ways the eval doesn't cover.
+- KB-adaptive questions are LLM-generated from a single chunk each. They're a
+  fast, honest signal on your real corpus, but for a rigorous, stable benchmark
+  supply a curated `corpus` instead.
 
 For deeper evaluation, integrate with tools like:
 - **RAGAS**: automatic reference-free evaluation
