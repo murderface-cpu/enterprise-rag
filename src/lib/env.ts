@@ -40,7 +40,9 @@ const envSchema = z.object({
   // --- LLM knobs ---
   LLM_MODEL: z.string().default("gemini-1.5-flash"),
   LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
-  LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(1024),
+  // "Standard" response-depth token budget. Concise/deep modes scale off this
+  // (see RESPONSE_MODE_TOKENS in lib/llm/client.ts).
+  LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(2048),
 
   // --- Groq (OpenAI-compatible) LLM ---
   GROQ_API_KEY: z.string().optional(),
@@ -50,6 +52,13 @@ const envSchema = z.object({
   // --- Retrieval knobs ---
   TOP_K: z.coerce.number().int().positive().default(8),
   MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
+
+  // --- Ingestion knobs ---
+  MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(10),
+  MAX_FILES_PER_UPLOAD: z.coerce.number().int().positive().default(25),
+  // How many files to load/chunk/embed/upsert concurrently in one batch.
+  // Kept modest so we don't blow past embedder/vector-store rate limits.
+  INGEST_CONCURRENCY: z.coerce.number().int().positive().max(8).default(3),
 
   // --- Behavior toggles ---
   ALLOW_MOCK_MODE: z
@@ -103,12 +112,15 @@ export const env = parsed.success
       LOCAL_EMBEDDING_MODEL: process.env.LOCAL_EMBEDDING_MODEL ?? "Xenova/bge-base-en-v1.5",
       LLM_MODEL: process.env.LLM_MODEL ?? "gemini-1.5-flash",
       LLM_TEMPERATURE: Number(process.env.LLM_TEMPERATURE ?? 0.2),
-      LLM_MAX_OUTPUT_TOKENS: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 1024),
+      LLM_MAX_OUTPUT_TOKENS: Number(process.env.LLM_MAX_OUTPUT_TOKENS ?? 2048),
       GROQ_API_KEY: process.env.GROQ_API_KEY,
       GROQ_MODEL: process.env.GROQ_MODEL ?? "openai/gpt-oss-20b",
       GROQ_BASE_URL: process.env.GROQ_BASE_URL ?? "https://api.groq.com/openai/v1",
       TOP_K: Number(process.env.TOP_K ?? 8),
       MIN_RELEVANCE_SCORE: Number(process.env.MIN_RELEVANCE_SCORE ?? 0.5),
+      MAX_FILE_SIZE_MB: Number(process.env.MAX_FILE_SIZE_MB ?? 10),
+      MAX_FILES_PER_UPLOAD: Number(process.env.MAX_FILES_PER_UPLOAD ?? 25),
+      INGEST_CONCURRENCY: Number(process.env.INGEST_CONCURRENCY ?? 3),
       ALLOW_MOCK_MODE: (process.env.ALLOW_MOCK_MODE ?? "true").toLowerCase() === "true",
       RATE_LIMIT_PER_MINUTE: Number(process.env.RATE_LIMIT_PER_MINUTE ?? 60),
       NODE_ENV: (process.env.NODE_ENV as "development" | "production" | "test") ?? "development",

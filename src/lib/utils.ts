@@ -68,3 +68,26 @@ export function chunks<T>(arr: readonly T[], size: number): T[][] {
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
 }
+
+/**
+ * Map over `items` with at most `concurrency` calls to `fn` in flight at
+ * once, preserving input order in the returned array. Used for batch
+ * ingestion so multiple files load/chunk/embed/upsert in parallel without
+ * unbounded fan-out against the embedder or vector store.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}

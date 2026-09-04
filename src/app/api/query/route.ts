@@ -21,6 +21,10 @@ const querySchema = z.object({
   question: z.string().min(1, "question is required").max(4000),
   topK: z.number().int().positive().max(50).optional(),
   filter: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  // Response depth: concise (1-3 sentences) / standard (default) / deep
+  // (longer, structured, synthesizes insights across sources).
+  responseMode: z.enum(["concise", "standard", "deep"]).optional(),
+  maxOutputTokens: z.number().int().positive().max(8192).optional(),
 });
 
 const handler = withRoute("query", async (req: NextRequest, ctx) => {
@@ -31,6 +35,8 @@ const handler = withRoute("query", async (req: NextRequest, ctx) => {
   const result = await pipeline.answer({
     question: parsed.data.question,
     topK: parsed.data.topK,
+    responseMode: parsed.data.responseMode,
+    maxOutputTokens: parsed.data.maxOutputTokens,
     // Restrict retrieval to this session's documents.
     filter: { ...parsed.data.filter, sessionId: ctx.sessionId },
   });

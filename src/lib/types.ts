@@ -55,11 +55,22 @@ export interface RetrievalHit {
   metadata: ChunkMetadata;
 }
 
+/** How much the model should say, and how it should say it.
+ *   - concise:  1-2 sentence direct answer, minimal elaboration.
+ *   - standard: the existing default — short paragraphs + bullets.
+ *   - deep:     a longer, structured brief: direct answer, then themed
+ *               sections synthesizing insights/patterns across sources.
+ */
+export type ResponseMode = "concise" | "standard" | "deep";
+
 /** A query for the RAG pipeline. */
 export interface RAGQuery {
   question: string;
   topK?: number;
   filter?: Record<string, string | number | boolean>;
+  responseMode?: ResponseMode;
+  /** Explicit override; when absent, derived from `responseMode`. */
+  maxOutputTokens?: number;
 }
 
 /** Observability payload returned by the RAG pipeline. */
@@ -76,6 +87,7 @@ export interface RAGResponse {
     confidence: "low" | "medium" | "high";
     model: string;
     groundedOnly: boolean;
+    responseMode: ResponseMode;
   };
 }
 

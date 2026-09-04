@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RAGResponse } from "@/lib/types";
+import type { RAGResponse, ResponseMode } from "@/lib/types";
 import { CitationCard } from "@/components/CitationCard";
+import { AnswerText } from "@/components/AnswerText";
+
+const RESPONSE_MODES: { value: ResponseMode; label: string; hint: string }[] = [
+  { value: "concise", label: "Concise", hint: "1-3 sentences, no filler" },
+  { value: "standard", label: "Standard", hint: "Short paragraphs + bullets" },
+  { value: "deep", label: "Deep dive", hint: "Longer brief with synthesized insights" },
+];
 
 export interface ChatMessage {
   id: string;
@@ -23,6 +30,7 @@ export function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [topK, setTopK] = useState(6);
+  const [responseMode, setResponseMode] = useState<ResponseMode>("standard");
   const [submitting, setSubmitting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,7 +62,7 @@ export function ChatPanel() {
       const res = await fetch("/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text, topK }),
+        body: JSON.stringify({ question: text, topK, responseMode }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as RAGResponse;
@@ -86,18 +94,34 @@ export function ChatPanel() {
             <h2 className="text-base font-semibold text-ink-900">Ask the knowledge base</h2>
             <p className="text-xs text-ink-500">Grounded answers with citations and observability.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-ink-500" htmlFor="topk-select">Top-K</label>
-            <select
-              id="topk-select"
-              value={topK}
-              onChange={(e) => setTopK(Number(e.target.value))}
-              className="rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            >
-              {[3, 5, 6, 8, 10, 12].map((k) => (
-                <option key={k} value={k}>{k}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-ink-500" htmlFor="mode-select">Depth</label>
+              <select
+                id="mode-select"
+                value={responseMode}
+                onChange={(e) => setResponseMode(e.target.value as ResponseMode)}
+                title={RESPONSE_MODES.find((m) => m.value === responseMode)?.hint}
+                className="rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {RESPONSE_MODES.map((m) => (
+                  <option key={m.value} value={m.value} title={m.hint}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-ink-500" htmlFor="topk-select">Top-K</label>
+              <select
+                id="topk-select"
+                value={topK}
+                onChange={(e) => setTopK(Number(e.target.value))}
+                className="rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {[3, 5, 6, 8, 10, 12, 16, 20].map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -144,10 +168,10 @@ export function ChatPanel() {
               </div>
             )}
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+              className={`rounded-2xl px-4 py-3 text-sm ${
                 m.role === "user"
-                  ? "rounded-tr-sm bg-brand-600 text-white shadow-sm"
-                  : "rounded-tl-sm border border-ink-100 bg-white text-ink-900 shadow-sm"
+                  ? "max-w-[85%] rounded-tr-sm bg-brand-600 text-white shadow-sm"
+                  : "max-w-[92%] rounded-tl-sm border border-ink-100 bg-white text-ink-900 shadow-sm"
               }`}
             >
               {m.role === "user" ? (
@@ -168,7 +192,7 @@ export function ChatPanel() {
                 </p>
               ) : m.response ? (
                 <div className="space-y-3">
-                  <p className="whitespace-pre-wrap leading-relaxed">{m.response.answer}</p>
+                  <AnswerText text={m.response.answer} />
                   {m.response.citations.length > 0 && (
                     <div className="border-t border-ink-100 pt-3">
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-400">
@@ -236,6 +260,7 @@ function ObservabilityRow({
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-ink-100 pt-2.5 text-[11px] text-ink-400">
       <ConfidenceBadge level={obs.confidence} />
+      <span className="capitalize">{obs.responseMode}</span>
       <span>{obs.numRetrieved} chunks</span>
       <span>retrieve {obs.retrievalLatencyMs.toFixed(0)} ms</span>
       <span>generate {obs.generationLatencyMs.toFixed(0)} ms</span>

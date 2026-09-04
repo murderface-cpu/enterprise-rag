@@ -30,6 +30,7 @@ export class RAGPipeline {
     const traceId = newTraceId();
     const t0 = performance.now();
     const topK = query.topK ?? env.TOP_K;
+    const responseMode = query.responseMode ?? "standard";
 
     const retrievalStats = await measure(() => this.retriever.retrieve({ ...query, topK }));
     const hits = retrievalStats.result;
@@ -51,12 +52,17 @@ export class RAGPipeline {
           confidence: "low",
           model: this.llm.modelName,
           groundedOnly: true,
+          responseMode,
         },
       };
     }
 
     const generationStats = await measure(() =>
-      this.llm.generate({ question: query.question, hits })
+      this.llm.generate({
+        question: query.question,
+        hits,
+        options: { responseMode, maxOutputTokens: query.maxOutputTokens },
+      })
     );
     const { text, citationsUsed, groundedOnly } = generationStats.result;
     const generationLatencyMs = generationStats.latencyMs;
@@ -102,6 +108,7 @@ export class RAGPipeline {
         confidence,
         model: this.llm.modelName,
         groundedOnly,
+        responseMode,
       },
     };
   }

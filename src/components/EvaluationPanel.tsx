@@ -38,16 +38,25 @@ const CORPUS_SOURCE_LABEL: Record<string, string> = {
   custom: "Custom corpus supplied in the request",
 };
 
+const NUM_QUERIES_OPTIONS = [3, 6, 10, 15, 20, 25];
+const TOP_K_OPTIONS = [3, 5, 6, 8, 10, 12, 16, 20];
+
 export function EvaluationPanel() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<EvalResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [numQueries, setNumQueries] = useState(6);
+  const [topK, setTopK] = useState(8);
 
   const run = async () => {
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch("/api/evaluate", { method: "POST" });
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numQueries, topK }),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as EvalResponse;
       setResult(data);
@@ -61,7 +70,7 @@ export function EvaluationPanel() {
   return (
     <div className="card p-5">
       {/* Header */}
-      <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-ink-900">Evaluation</h2>
           <p className="mt-0.5 text-xs text-ink-500">
@@ -86,22 +95,58 @@ export function EvaluationPanel() {
             </>
           )}
         </div>
-        <button
-          onClick={run}
-          disabled={running}
-          className="btn-primary shrink-0"
-        >
-          {running ? (
-            <span className="flex items-center gap-2">
-              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-              Running...
-            </span>
-          ) : (
-            "Run evaluation"
-          )}
-        </button>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-ink-500" htmlFor="eval-numqueries">
+              Eval scale (queries)
+            </label>
+            <select
+              id="eval-numqueries"
+              value={numQueries}
+              onChange={(e) => setNumQueries(Number(e.target.value))}
+              disabled={running}
+              title="Number of documents sampled into a KB-derived eval set. Ignored if you're on the default sample corpus."
+              className="rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              {NUM_QUERIES_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-ink-500" htmlFor="eval-topk">
+              Top-K
+            </label>
+            <select
+              id="eval-topk"
+              value={topK}
+              onChange={(e) => setTopK(Number(e.target.value))}
+              disabled={running}
+              className="rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            >
+              {TOP_K_OPTIONS.map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={run}
+            disabled={running}
+            className="btn-primary shrink-0"
+          >
+            {running ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Running...
+              </span>
+            ) : (
+              "Run evaluation"
+            )}
+          </button>
+        </div>
       </div>
 
       {error && (
