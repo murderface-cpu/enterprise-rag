@@ -6,17 +6,25 @@
  * + KB state), and returns a per-file status summary.
  *
  * Body:
- *   - files: one or more file parts (TXT/PDF/DOCX/HTML/MD, ≤ 10MB each)
+ *   - files: one or more file parts (TXT/PDF/DOCX/HTML/MD, ≤ MAX_FILE_SIZE_MB
+ *     each, ≤ MAX_FILES_PER_UPLOAD per request — see lib/env.ts)
  *   - strategy: "recursive" | "fixed" (default recursive)
+ *
+ * Files in a batch are loaded/chunked/embedded/upserted concurrently (see
+ * INGEST_CONCURRENCY), so multi-file uploads scale sub-linearly instead of
+ * queueing one file behind the next.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { withRoute, json, optionsHandler, parseBody } from "@/lib/api/helpers";
 import { ingestFiles } from "@/lib/services/ingestion";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Bounded by MAX_FILES_PER_UPLOAD; a large batch with several concurrency
+// rounds needs more headroom than a single-file upload did.
+export const maxDuration = 180;
 export const runtime = "nodejs";
 
 export const OPTIONS = optionsHandler;
@@ -58,6 +66,15 @@ const handler = withRoute("ingest", async (req: NextRequest, ctx) => {
     }));
   } else {
     return json({ error: "Content-Type must be multipart/form-data or application/json" }, { status: 415 });
+  }
+
+  if (inputs.length > env.MAX_FILES_PER_UPLOAD) {
+    return json(
+      {
+        error: `Too many files in one batch (${inputs.length}). Upload at most ${env.MAX_FILES_PER_UPLOAD} at a time.`,
+      },
+      { status: 400 }
+    );
   }
 
   const summary = await ingestFiles(inputs, ctx.sessionId);

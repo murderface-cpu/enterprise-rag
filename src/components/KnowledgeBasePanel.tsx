@@ -11,12 +11,19 @@ const FILE_ICONS: Record<string, string> = {
   html: "🌐",
 };
 
+// Mirrors src/lib/env.ts MAX_FILE_SIZE_MB / MAX_FILES_PER_UPLOAD defaults —
+// just for a fast client-side check before we bother the network; the
+// server enforces the real (possibly operator-overridden) limits.
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILES_PER_UPLOAD = 25;
+
 export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
   const [docs, setDocs] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSummary, setUploadSummary] = useState<string | null>(null);
+  const [uploadCount, setUploadCount] = useState(0);
   const [resetting, setResetting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -43,17 +50,28 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
 
   const upload = useCallback(
     async (files: FileList | File[]) => {
-      if (!files || (files instanceof FileList && files.length === 0)) return;
+      const list = Array.from(files ?? []);
+      if (list.length === 0) return;
+
+      if (list.length > MAX_FILES_PER_UPLOAD) {
+        setUploadError(`Too many files at once (${list.length}). Upload at most ${MAX_FILES_PER_UPLOAD} per batch.`);
+        return;
+      }
+      const oversized = list.filter((f) => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
+      if (oversized.length > 0) {
+        setUploadError(
+          `${oversized.length} file${oversized.length === 1 ? "" : "s"} exceed${oversized.length === 1 ? "s" : ""} ${MAX_FILE_SIZE_MB}MB: ${oversized.map((f) => f.name).join(", ")}`
+        );
+        return;
+      }
+
       setUploading(true);
+      setUploadCount(list.length);
       setUploadError(null);
       setUploadSummary(null);
       try {
         const form = new FormData();
-        if (files instanceof FileList) {
-          for (const f of Array.from(files)) form.append("files", f);
-        } else {
-          for (const f of files) form.append("files", f);
-        }
+        for (const f of list) form.append("files", f);
         const res = await fetch("/api/ingest", { method: "POST", body: form });
         if (!res.ok) {
           const t = await res.text();
@@ -64,10 +82,18 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
           skipped: number;
           failed: number;
           total: number;
+          results: { filename: string; status: string; reason?: string }[];
         };
         setUploadSummary(
           `Ingested ${data.ingested}/${data.total} (skipped: ${data.skipped}, failed: ${data.failed})`
         );
+        if (data.failed > 0) {
+          const reasons = data.results
+            .filter((r) => r.status === "failed")
+            .map((r) => `${r.filename}: ${r.reason ?? "unknown error"}`)
+            .join("\n");
+          setUploadError(reasons);
+        }
         await refresh();
         onChange?.();
       } catch (e) {
@@ -154,7 +180,7 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
             <svg className="mt-0.5 shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            {uploadError}
+            <span className="whitespace-pre-wrap">{uploadError}</span>
           </div>
         )}
         {uploadSummary && (
@@ -201,7 +227,9 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
           <p className="mb-0.5 text-sm font-medium">
             {dragActive ? "Drop to upload" : "Drag files here"}
           </p>
-          <p className="mb-3 text-xs text-ink-400">.txt, .md, .pdf, .docx, .html (up to 10 MB each)</p>
+          <p className="mb-3 text-xs text-ink-400">
+            .txt, .md, .pdf, .docx, .html &middot; up to {MAX_FILE_SIZE_MB}MB each &middot; up to {MAX_FILES_PER_UPLOAD} files per batch
+          </p>
           <input
             ref={fileInputRef}
             type="file"
@@ -223,7 +251,7 @@ export function KnowledgeBasePanel({ onChange }: { onChange?: () => void }) {
                 <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
-                Uploading...
+                Uploading {uploadCount} file{uploadCount === 1 ? "" : "s"}...
               </span>
             ) : (
               "Browse files"

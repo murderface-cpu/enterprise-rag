@@ -10,7 +10,8 @@
  *       { "question": "...", "relevantDocIds": ["..."], "expectedAnswerSubstrings": ["..."] },
  *       ...
  *     ],
- *     "topK": 8
+ *     "topK": 8,
+ *     "numQueries": 6   // scale of the KB-derived eval set (ignored for custom/default corpora)
  *   }
  */
 
@@ -23,7 +24,9 @@ import { DEFAULT_EVAL_CORPUS, buildCorpusFromKB, type EvalCase } from "@/lib/eva
 import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// Scales with `numQueries` (each case runs an answer + a retrieval-only
+// pass); give the largest configurable batch (25) real headroom.
+export const maxDuration = 240;
 export const runtime = "nodejs";
 
 export const OPTIONS = optionsHandler;
@@ -40,6 +43,10 @@ const evalBodySchema = z.object({
     )
     .optional(),
   topK: z.number().int().positive().max(50).optional(),
+  // How many documents to sample into a KB-derived eval set. Ignored when an
+  // explicit `corpus` is supplied, or when the session KB is empty (the
+  // built-in default corpus has a fixed size).
+  numQueries: z.number().int().min(1).max(25).optional(),
 });
 
 export const POST = withRoute("evaluate", async (req: NextRequest, ctx) => {
@@ -58,7 +65,7 @@ export const POST = withRoute("evaluate", async (req: NextRequest, ctx) => {
     corpus = parsed.data.corpus;
     corpusSource = "custom";
   } else {
-    const built = await buildCorpusFromKB(ctx.sessionId);
+    const built = await buildCorpusFromKB(ctx.sessionId, parsed.data.numQueries);
     if (built.source === "kb" && built.cases.length > 0) {
       corpus = built.cases;
       corpusSource = "kb";
